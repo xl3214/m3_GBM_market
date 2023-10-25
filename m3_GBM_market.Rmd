@@ -1,0 +1,204 @@
+---
+title: "Market Analysis and Patient Sub-segment Identification for Glioblastoma Multiforme (GBM) Entry Strategy"
+author: "Xuan Lu"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This report aims to provide a comprehensive analysis of the Glioblastoma Multiforme (GBM) therapeutic area to support our client's decision-making process as they consider entering this highly specialized field. By leveraging the attached GBM patient data in .csv format, our analysis is focused on understanding the structure of the GBM market, particularly in terms of identifying clinically meaningful patient sub-segments that are currently treated differently. Our goal is to unveil distinct opportunities within this challenging and vital medical landscape.
+
+In this report, we will:
+
+1. Conduct a detailed examination of the GBM market, including its current status, challenges, and potential growth areas.
+
+2. Analyze the patient data to identify patient sub-segments that exhibit unique clinical characteristics or treatment patterns.
+
+3. Present findings and insights that will guide a 30-minute discussion with the management team, addressing the specific interests of our client.
+
+4. Offer strategic recommendations based on our analysis to inform our client's potential entry strategy into the GBM therapeutic area.
+
+5. By undertaking this analysis, we aim to facilitate a well-informed discussion that will lead to effective decision-making and market positioning for our client.
+
+
+
+## Descriptive Statistics
+
+```{r data import and cleaning, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
+# Load the packages
+library(dplyr)
+library(psych)
+
+# Read the dataset
+gbm <- read.csv("GBM patient data.csv") |>
+  janitor::clean_names()
+colnames(gbm)
+# [1] "md_id"                                 "patient_id"                           
+# [3] "country"                               "line_of_therapy"                      
+# [5] "year_of_birth"                         "age_at_diagnosis"                     
+# [7] "gender"                                "race"                                 
+# [9] "adequate_caretaker_support"            "travel_time_to_your_office_30_min"    
+#[11] "patient_s_level_of_involvement_in_gbm" "patient_s_treatment_goals"            
+#[13] "primary_insurance"                     "comorbidity_renal_impairment"         
+#[15] "comorbidity_anemia"                    "comorbidity_copd_pulmonary"           
+#[17] "comorbidity_diabetes"                  "comorbidity_chf_cong_heart_failure"   
+#[19] "comorbidity_neuropathies"              "comorbidity_other_neurological"       
+#[21] "comorbidity_hepatic_insufficiency"     "comorbidity_other_cytopenia"          
+#[23] "comorbidity_autoimmune_disorder"       "comorbidity_hypertension"             
+#[25] "comorbidity_other_cardiovascular"      "comorbidity_alzheimer_s"              
+#[27] "comorbidity_other_cancer_besides_gbm"  "comorbidity_other_specify"            
+#[29] "comorbidity_other_specify_1"           "comorbidity_none"                     
+#[31] "ecog_at_1st_line"                      "ecog_at_2nd_line"                     
+#[33] "mgmt_methylated"                       "egfr_mutated"                         
+#[35] "tp53_mutated"                          "idh1_idh2_mutated"                    
+#[37] "pd_l1_overexpressed"                   "x_of_tumor_mass_surgically_resected"  
+#[39] "regimen_in_1st_line"                   "regimen_in_1st_line_other"            
+#[41] "regimen_in_2nd_line"                   "regimen_in_2nd_line_other" 
+
+summary(gbm)
+#     md_id         patient_id       country          line_of_therapy    year_of_birth  age_at_diagnosis
+# Min.   :10487   Min.   :104871   Length:750         Length:750         Min.   :1925   Min.   :19.00   
+# 1st Qu.:11439   1st Qu.:114393   Class :character   Class :character   1st Qu.:1950   1st Qu.:48.00   
+# Median :13266   Median :132663   Mode  :character   Mode  :character   Median :1957   Median :57.00   
+# Mean   :12604   Mean   :126047                                         Mean   :1958   Mean   :56.90   
+# 3rd Qu.:13462   3rd Qu.:134623                                         3rd Qu.:1966   3rd Qu.:65.75   
+# Max.   :13536   Max.   :135365                                         Max.   :1996   Max.   :88.00   
+#    gender              race           adequate_caretaker_support travel_time_to_your_office_30_min
+# Length:750         Length:750         Min.   :0.000              Min.   :0.0000                   
+# Class :character   Class :character   1st Qu.:0.000              1st Qu.:0.0000                   
+# Mode  :character   Mode  :character   Median :1.000              Median :0.0000                   
+#                                       Mean   :1.244              Mean   :0.9467                   
+#                                       3rd Qu.:1.000              3rd Qu.:1.0000                   
+#                                       Max.   :9.000              Max.   :9.0000                   
+# patient_s_level_of_involvement_in_gbm patient_s_treatment_goals primary_insurance  comorbidity_renal_impairment
+# Length:750                            Length:750                Length:750         Min.   :0.0000              
+# Class :character                      Class :character          Class :character   1st Qu.:0.0000              
+# Mode  :character                      Mode  :character          Mode  :character   Median :0.0000              
+#                                                                                    Mean   :0.1053              
+#                                                                                    3rd Qu.:0.0000              
+#                                                                                    Max.   :1.0000              
+# comorbidity_anemia comorbidity_copd_pulmonary comorbidity_diabetes comorbidity_chf_cong_heart_failure
+# Min.   :0.000      Min.   :0.0000             Min.   :0.000        Min.   :0.000                     
+# 1st Qu.:0.000      1st Qu.:0.0000             1st Qu.:0.000        1st Qu.:0.000                     
+# Median :0.000      Median :0.0000             Median :0.000        Median :0.000                     
+# Mean   :0.156      Mean   :0.1147             Mean   :0.184        Mean   :0.056                     
+# 3rd Qu.:0.000      3rd Qu.:0.0000             3rd Qu.:0.000        3rd Qu.:0.000                     
+# Max.   :1.000      Max.   :1.0000             Max.   :1.000        Max.   :1.000                     
+# comorbidity_neuropathies comorbidity_other_neurological comorbidity_hepatic_insufficiency
+# Min.   :0.00000          Min.   :0.00000                Min.   :0.00000                  
+# 1st Qu.:0.00000          1st Qu.:0.00000                1st Qu.:0.00000                  
+# Median :0.00000          Median :0.00000                Median :0.00000                  
+# Mean   :0.06267          Mean   :0.02267                Mean   :0.02667                  
+# 3rd Qu.:0.00000          3rd Qu.:0.00000                3rd Qu.:0.00000                  
+# Max.   :1.00000          Max.   :1.00000                Max.   :1.00000                  
+# comorbidity_other_cytopenia comorbidity_autoimmune_disorder comorbidity_hypertension
+# Min.   :0.00000             Min.   :0.000                   Min.   :0.00            
+# 1st Qu.:0.00000             1st Qu.:0.000                   1st Qu.:0.00            
+# Median :0.00000             Median :0.000                   Median :0.00            
+# Mean   :0.03067             Mean   :0.024                   Mean   :0.24            
+# 3rd Qu.:0.00000             3rd Qu.:0.000                   3rd Qu.:0.00            
+# Max.   :1.00000             Max.   :1.000                   Max.   :1.00            
+# comorbidity_other_cardiovascular comorbidity_alzheimer_s comorbidity_other_cancer_besides_gbm
+# Min.   :0.000                    Min.   :0.00000         Min.   :0.000                       
+# 1st Qu.:0.000                    1st Qu.:0.00000         1st Qu.:0.000                       
+# Median :0.000                    Median :0.00000         Median :0.000                       
+# Mean   :0.064                    Mean   :0.01333         Mean   :0.016                       
+# 3rd Qu.:0.000                    3rd Qu.:0.00000         3rd Qu.:0.000                       
+# Max.   :1.000                    Max.   :1.00000         Max.   :1.000                       
+# comorbidity_other_specify comorbidity_other_specify_1 comorbidity_none ecog_at_1st_line ecog_at_2nd_line
+# Min.   :0.00000           Length:750                  Min.   :0.0000   Min.   :0.00     Min.   :0.000   
+# 1st Qu.:0.00000           Class :character            1st Qu.:0.0000   1st Qu.:1.00     1st Qu.:1.000   
+# Median :0.00000           Mode  :character            Median :0.0000   Median :1.00     Median :2.000   
+# Mean   :0.01733                                       Mean   :0.4733   Mean   :1.28     Mean   :4.479   
+# 3rd Qu.:0.00000                                       3rd Qu.:1.0000   3rd Qu.:2.00     3rd Qu.:9.000   
+# Max.   :1.00000                                       Max.   :1.0000   Max.   :4.00     Max.   :9.000   
+# mgmt_methylated  egfr_mutated    tp53_mutated   idh1_idh2_mutated pd_l1_overexpressed
+# Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000     Min.   :0.000      
+# 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:1.000   1st Qu.:1.000     1st Qu.:1.000      
+# Median :1.000   Median :9.000   Median :9.000   Median :9.000     Median :9.000      
+# Mean   :3.391   Mean   :4.849   Mean   :5.471   Mean   :5.953     Mean   :5.925      
+# 3rd Qu.:9.000   3rd Qu.:9.000   3rd Qu.:9.000   3rd Qu.:9.000     3rd Qu.:9.000      
+# Max.   :9.000   Max.   :9.000   Max.   :9.000   Max.   :9.000     Max.   :9.000      
+# x_of_tumor_mass_surgically_resected regimen_in_1st_line regimen_in_1st_line_other regimen_in_2nd_line
+# Min.   : 10.0                       Length:750          Length:750                Length:750         
+# 1st Qu.: 56.0                       Class :character    Class :character          Class :character   
+# Median : 90.0                       Mode  :character    Mode  :character          Mode  :character   
+# Mean   :322.8                                                                                        
+# 3rd Qu.:999.0                                                                                        
+# Max.   :999.0                                                                                        
+# regimen_in_2nd_line_other
+# Length:750               
+# Class :character         
+# Mode  :character 
+
+unique(gbm$country)
+# "US"
+unique(gbm$line_of_therapy)
+# "1L" "2L"
+unique(gbm$race)
+# "Black/African" "White/Caucasian" "Spanish/Hispanic/Latino" "Asian" "Other" 
+unique(gbm$gender)
+# "Male" "Female"
+unique(gbm$patient_s_level_of_involvement_in_gbm)
+# "Active / knowledgeable / questioning" "Average level of engagement with the disease" 
+# "Passive / not interested / unengaged" 
+unique(gbm$patient_s_treatment_goals)
+# "More focused on Survival" "More focused on Quality of Life"
+unique(gbm$primary_insurance)
+# "HMO" "PPO" "9" "Medicare" "Medicaid" "VA/Other government" "Uninsured" "Exchange" "Other"  
+unique(gbm$comorbidity_other_specify_1)
+# [1] " "                                                "disc disease"                                    
+# [3] "elevated cholesterol, Herniated disc s/p surgery" "obesity"                                         
+# [5] "parkinson's disease"                              "arthritis"                                       
+# [7] "aortic aneurysm"                                  "bipolar"                                         
+# [9] "obese"                                       
+unique(gbm$regimen_in_1st_line)
+# [1] "Avastin mono"         "Avastin + Lomustine"  "Avastin + Irinotecan" "Avastin + TMZ"       
+# [5] "TMZ mono"             "Lomustine mono"       "Gliadel wafers"       "Other"   
+unique(gbm$regimen_in_1st_line_other)
+# " " "Irinotecan" "lomustine" 
+unique(gbm$regimen_in_2nd_line)
+# [1] "999"                  "Avastin mono"         "TMZ mono"             "Lomustine mono"      
+# [5] "Avastin + TMZ"        "Avastin + Irinotecan" "Avastin + Lomustine"  "Gliadel wafers"      
+# [9] "Other"               
+unique(gbm$regimen_in_2nd_line_other)
+# " " "bevacizumab" "cyberknife and temozolomide"
+
+# Select the variables for which you want to compute descriptive statistics
+selected_vars <- gbm |>
+  select(age_at_diagnosis, travel_time_to_your_office_30_min, x_of_tumor_mass_surgically_resected)
+
+# Calculate summary statistics
+summary_stats <- describe(selected_vars)
+
+# View the summary statistics
+print(summary_stats)
+
+# Generate frequency table for 'gender'
+gender_freq <- table(gbm$gender)
+
+# Display the frequency table for 'gender'
+print("Frequency Table for Gender:")
+print(gender_freq)
+
+# Generate frequency table for 'race'
+race_freq <- table(gbm$race)
+
+# Display the frequency table for 'race'
+print("Frequency Table for Race:")
+print(race_freq)
+
+# Generate frequency table for 'primary_insurance'
+insurance_freq <- table(gbm$primary_insurance)
+
+# Display the frequency table for 'primary_insurance'
+print("Frequency Table for Primary Insurance:")
+print(insurance_freq)
+```
+
+
