@@ -19,6 +19,558 @@ This report offers a comprehensive analysis of the Glioblastoma Multiforme (GBM)
 
 Glioblastoma Multiforme (GBM) stands as the most common and aggressive primary malignant brain tumor in adults. It originates from glial cells in the brain, particularly astrocytes. GBM is characterized by its highly invasive nature, rapid growth rate, and a high recurrence rate, making it a formidable challenge to treat. The standard treatment protocol includes surgery, radiation, and chemotherapy, with Temozolomide being a common chemotherapy drug. Despite aggressive treatment, prognosis remains bleak, with a median survival of 12-15 months.
 
+### **Market Analysis**
+
+#### Descriptive Statistics
+
+```{r data import and cleaning, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
+# Load the packages
+library(dplyr)
+
+# Read the dataset
+gbm <- read.csv("GBM patient data.csv") |>
+  janitor::clean_names()
+```
+
+To better understand the GBM market, here are some analysis results utilizing data of `r n_distinct(gbm$patient_id)` participants from `r n_distinct(gbm$md_id)` healthcare providers.
+
+```{r raw data explorations, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
+library(summarytools)
+summarytools::dfSummary(gbm) %>% knitr::kable()
+```
+
+```{r data cleaning, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
+# Identify variables with names starting with "comorbidity_"
+comorbidity_vars <- grep("^comorbidity_", names(gbm), value = TRUE)
+
+# Filter out numeric variables from comorbidity variables (binary, 1 = yes and 0 = no)
+comorbidity_num_vars <- comorbidity_vars[sapply(gbm[comorbidity_vars], is.numeric)]
+
+# Load necessary libraries
+library(dplyr)
+library(forcats)
+
+# Renaming variables
+gbm <- gbm %>%
+  rename(
+          patient_level_of_involvement = patient_s_level_of_involvement_in_gbm, 
+          comorbidity_alzheimer = comorbidity_alzheimer_s, 
+          comorbidity_other_cancer_notgbm = comorbidity_other_cancer_besides_gbm, 
+          patient_travel_time_lt30min = travel_time_to_your_office_30_min, 
+          patient_treatment_goals = patient_s_treatment_goals, 
+          pct_of_tumor_mass_surgically_resected = x_of_tumor_mass_surgically_resected
+         )
+gbm <- gbm %>%
+  # Recode "comorbidity_" numeric variables as "No", "Yes", or "Unknown"
+  mutate(across(starts_with("comorbidity_"), ~ recode_factor(.,
+                                                             `0` = "No",
+                                                             `1` = "Yes",
+                                                             `9` = "Unknown"))) %>%
+  # Recode specified variables based on criteria
+  mutate(across(all_of(c(
+    "adequate_caretaker_support", 
+    "patient_travel_time_lt30min", 
+    "mgmt_methylated", 
+    "egfr_mutated", 
+    "tp53_mutated", 
+    "idh1_idh2_mutated", 
+    "pd_l1_overexpressed")), 
+    ~ recode_factor(.,
+                    `0` = "No",
+                    `1` = "Yes",
+                    `9` = "Unknown"))) %>%
+  # Recode ECOG variables with specific criteria
+  mutate(across(all_of(c("ecog_at_1st_line", "ecog_at_2nd_line")), 
+                ~ recode_factor(.,
+                                `0` = "ECOG 0",
+                                `1` = "ECOG 1",
+                                `2` = "ECOG 2",
+                                `3` = "ECOG 3",
+                                `4` = "ECOG 4",
+                                `9` = "Unknown"))) %>%
+  # Recode character variables based on criteria
+  mutate(across(all_of(c("regimen_in_2nd_line", "primary_insurance")),
+                ~ ifelse(. == "999" | . == "9", "Unknown", .))) %>%
+  mutate(pct_of_tumor_mass_surgically_resected = ifelse(
+    pct_of_tumor_mass_surgically_resected == 999, NA, pct_of_tumor_mass_surgically_resected)) %>%
+  # Recode involvement and treatment goals
+  mutate(patient_level_of_involvement = recode(patient_level_of_involvement, 
+                                               "Active / knowledgeable / questioning" = "High", 
+                                               "Average level of engagement with the disease" = "Average", 
+                                               "Passive / not interested / unengaged" = "Low"),
+         patient_treatment_goals = recode(patient_treatment_goals, 
+                                          "More focused on Survival" = "Survival",
+                                          "More focused on Quality of Life" = "Life Quality"),
+         patient_level_of_involvement = factor(patient_level_of_involvement, 
+                                               levels = c("Low", "Average", "High"), 
+                                               ordered = TRUE),
+         patient_treatment_goals = as.factor(patient_treatment_goals), 
+         race = recode(race, 
+                       "Black/African" = "Black", 
+                       "White/Caucasian" = "White",
+                       "Spanish/Hispanic/Latino" = "Hispanic"))
+
+# Create a function to concatenate comorbidity conditions
+combine_comorbidities <- function(row) {
+  comorbidities <- c()
+  
+  # List of all comorbidity variables
+  comorbidity_vars <- c("comorbidity_renal_impairment", "comorbidity_anemia", 
+                        "comorbidity_copd_pulmonary", "comorbidity_diabetes", 
+                        "comorbidity_chf_cong_heart_failure", "comorbidity_neuropathies", 
+                        "comorbidity_other_neurological", "comorbidity_hepatic_insufficiency", 
+                        "comorbidity_other_cytopenia", "comorbidity_autoimmune_disorder", 
+                        "comorbidity_hypertension", "comorbidity_other_cardiovascular", 
+                        "comorbidity_alzheimer", "comorbidity_other_cancer_notgbm")
+  
+  # Loop through comorbidity variables
+  for (var in comorbidity_vars) {
+    if (row[[var]] == "Yes") {
+      # Add the condition name to comorbidities list, removing 'comorbidity_' prefix and replacing '_' with ' '
+      comorbidities <- c(comorbidities, gsub("_", " ", sub("comorbidity_", "", var)))
+    }
+  }
+  
+  # Add non-blank values from 'comorbidity_other_specify_1'
+  if (row[["comorbidity_other_specify_1"]] != " ") {
+    comorbidities <- c(comorbidities, row[["comorbidity_other_specify_1"]])
+  }
+  
+  # Combine all comorbidities into a single string, separated by commas
+  paste(comorbidities, collapse = ", ")
+}
+
+# Apply the function to each row of the data frame and create a new variable
+gbm$combined_comorbidities <- apply(gbm, 1, combine_comorbidities)
+
+# Create a function to count the number of comorbidities
+count_comorbidities <- function(row) {
+  comorbidity_count <- 0
+  
+  # List of all comorbidity variables
+  comorbidity_vars <- c("comorbidity_renal_impairment", "comorbidity_anemia", 
+                        "comorbidity_copd_pulmonary", "comorbidity_diabetes", 
+                        "comorbidity_chf_cong_heart_failure", "comorbidity_neuropathies", 
+                        "comorbidity_other_neurological", "comorbidity_hepatic_insufficiency", 
+                        "comorbidity_other_cytopenia", "comorbidity_autoimmune_disorder", 
+                        "comorbidity_hypertension", "comorbidity_other_cardiovascular", 
+                        "comorbidity_alzheimer", "comorbidity_other_cancer_notgbm")
+  
+  # Loop through comorbidity variables
+  for (var in comorbidity_vars) {
+    if (row[[var]] == "Yes") {
+      comorbidity_count <- comorbidity_count + 1
+    }
+  }
+  
+  # Check 'comorbidity_other_specify_1' variable
+  if (row[["comorbidity_other_specify_1"]] != " ") {
+    comorbidity_count <- comorbidity_count + 1
+  }
+  
+  return(comorbidity_count)
+}
+
+# Apply the function to each row of the data frame and create a new variable
+gbm$comorbidity_count <- apply(gbm, 1, count_comorbidities)
+```
+
+```{r Descriptive Statistics, message=FALSE, warning=FALSE, echo=FALSE}
+# Load necessary libraries
+library(dplyr)
+library(tidyverse)
+library(psych)
+library(broom)
+
+# 1. Calculate summary statistics for continuous variables:
+
+# Select the variables to compute descriptive statistics
+numeric_vars <- gbm %>%
+  select_if(is.numeric) %>%
+  select(-md_id, -patient_id)
+
+# Calculate summary statistics
+summary_stats <- describe(numeric_vars) %>% select(mean, sd, min, max, range)
+
+# Print the statistic table
+print("Summary statistics for selected numeric variables:")
+summary_stats %>% knitr::kable()
+
+# 2. Generate frequency tables for categorical variables
+
+# Define the categorical variables you want to analyze
+categorical_vars <- gbm %>%
+  select_if(~ is.character(.) || is.factor(.))
+
+# Create an empty data frame to store the results
+result_freq <- data.frame(variable = character(0), categories = character(0), count = numeric(0), percent = character(0))
+
+# Loop through the categorical variables
+for (var in colnames(categorical_vars)) {
+  cat_summary <- gbm %>% 
+    group_by(!!sym(var)) %>%
+    summarize(count = n()) %>%
+    mutate(percent = scales::percent(count / sum(count), scale = 100))
+  # Add the variable name to the results
+  cat_summary <- cat_summary %>%
+    mutate(variable = var)
+  # Rename the categories column
+  names(cat_summary)[names(cat_summary) == var] <- "categories"
+  # Select and arrange the columns
+  cat_summary <- cat_summary %>%
+    select(variable, categories, count, percent)
+  # Append to the result data frame
+  result_freq <- bind_rows(result_freq, cat_summary)
+}
+
+cat_vars_X2 <- select(categorical_vars, c("race", "patient_level_of_involvement"))
+
+# Create an empty data frame to store the results
+chi_square_results <- data.frame(variable = character(0), chi_square = numeric(0), p_value = numeric(0))
+
+# Loop through each categorical variable
+for (var in colnames(cat_vars_X2)) {
+  # Subset the data for the current variable
+  var_data <- result_freq %>%
+    filter(variable == var)
+  # Create a contingency table
+  contingency_table <- table(var_data$categories, var_data$count)
+  # Perform chi-square test
+  chi_square_test <- chisq.test(contingency_table)
+  # Extract chi-square and p-value
+  chi_square_value <- chi_square_test$statistic
+  p_value <- chi_square_test$p.value
+  # Add results to the chi_square_results data frame
+  chi_square_results <- rbind(chi_square_results, data.frame(variable = var, chi_square = chi_square_value, p_value = p_value))
+}
+
+# Print the tables
+print("Selected categorical variables, Frequencies:")
+result_freq %>% 
+  filter(variable %in% c("gender", "race", "patient_level_of_involvement", "patient_treatment_goals", "line_of_therapy")) %>%
+  knitr::kable()
+print("Selected categorical variables, Chi-square test:")
+chi_square_results %>% 
+  knitr::kable()
+
+# 3. Generate frequency table for comorbidities
+
+# Split the combined_comorbidities column into individual comorbidities
+comorbidities_list <- unlist(strsplit(as.character(gbm$combined_comorbidities), ", "))
+# Calculate the frequency of each comorbidity
+comorbidity_frequency <- table(comorbidities_list)
+# Convert the table to a data frame
+comorbidity_df <- as.data.frame(comorbidity_frequency)
+# Rename the columns for clarity
+colnames(comorbidity_df) <- c("Comorbidity", "Frequency")
+# Order the data frame by frequency in descending order
+comorbidity_df <- comorbidity_df[order(-comorbidity_df$Frequency), ]
+
+# List of objects to keep
+objects_to_keep <- c("gbm", "summary_stats", "result_freq", "comorbidity_df")
+# Get a list of all objects in the current environment
+all_objects <- ls()
+# Find objects to remove
+objects_to_remove <- setdiff(all_objects, objects_to_keep)
+# Remove objects to be deleted
+rm(list = objects_to_remove)
+```
+
+#### Comorbidities
+
+There are a number of comorbidities that can co-occur with GBM. There is a maximum of `r max(gbm$comorbidity_count)` comorbidities co-occurring with GBM in record. The table below listed the 5 most common comorbidities in record and their frequencies.
+```{r echo = FALSE}
+# Display the data frame
+comorbidity_df %>% 
+  head(5) %>%
+  knitr::kable()
+```
+
+
+#### Existing Regimens
+
+```{r results='hide', echo=FALSE, message=FALSE, warning=FALSE}
+# Calculate the most and least popular regimens for the 1st line of therapy
+max_regimen_1st <- result_freq %>% 
+  filter(variable == "regimen_in_1st_line") %>%
+  arrange(desc(count)) %>%
+  slice(1)
+
+min_regimen_1st <- result_freq %>% 
+  filter(variable == "regimen_in_1st_line") %>%
+  arrange(count) %>%
+  slice(1)
+
+# Filter out "Unknown" and select regimens for the 2nd line of therapy
+regimen_2nd_line_filtered <- result_freq %>% 
+  filter(variable == "regimen_in_2nd_line", categories != "Unknown")
+
+# Calculate the total count after excluding "Unknown"
+total_count_filtered <- sum(regimen_2nd_line_filtered$count)
+
+# Calculate the percentages
+regimen_2nd_line_filtered <- regimen_2nd_line_filtered %>%
+  mutate(percent = scales::percent(count / total_count_filtered, scale = 100))
+
+# Identify the most and least popular regimens
+max_regimen_2nd <- regimen_2nd_line_filtered %>% 
+  arrange(desc(count)) %>%
+  slice(1)
+
+min_regimen_2nd <- regimen_2nd_line_filtered %>% 
+  arrange(count) %>%
+  slice(1)
+```
+
+##### 1st line of therapy
+
+Regimen used in 1st line of therapy include `r unique(result_freq$categories[result_freq$variable == "regimen_in_1st_line"])`. The most popular regimen used is `r max_regimen_1st$categories`, which accounts for `r max_regimen_1st$percent` of all regimens recorded. The least popular regimen used is `r min_regimen_1st$categories`, specifically `r unique(gbm$regimen_in_1st_line_other)`, which altogether accounts for `r min_regimen_1st$percent` of all regimens recorded.
+
+##### 2nd line of therapy
+
+Regimen used in 2nd line of therapy include `r unique(result_freq$categories[result_freq$variable == "regimen_in_2nd_line"])`. Excluding Unknown, the most popular regimen used is `r max_regimen_2nd$categories`, which accounts for `r max_regimen_2nd$percent` of all regimens recorded. The least popular regimen used is `r min_regimen_2nd$categories`, which accounts for `r min_regimen_2nd$percent` of all regimens recorded.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+categorical_vars <- gbm %>%
+  select_if(is.character)
+regimen_X2 <- select(categorical_vars, c("regimen_in_1st_line", "regimen_in_2nd_line"))
+
+# Create an empty data frame to store the results
+chi_square_results <- data.frame(variable = character(0), chi_square = numeric(0), p_value = numeric(0))
+
+# Loop through each categorical variable
+for (var in colnames(regimen_X2)) {
+  # Subset the data for the current variable
+  var_data <- result_freq %>%
+    filter(variable == var)
+  # Create a contingency table
+  contingency_table <- table(var_data$categories, var_data$count)
+  # Perform chi-square test
+  chi_square_test <- chisq.test(contingency_table)
+  # Extract chi-square and p-value
+  chi_square_value <- chi_square_test$statistic
+  p_value <- chi_square_test$p.value
+  # Add results to the chi_square_results data frame
+  chi_square_results <- rbind(chi_square_results, data.frame(variable = var, chi_square = chi_square_value, p_value = p_value))
+}
+
+# Output Table
+print("Regimens, Chi-square test:")
+chi_square_results %>% 
+  knitr::kable()
+```
+
+
+```{r explorations, results='hide', echo=FALSE, message=FALSE, warning=FALSE}
+summary(gbm)
+sum(is.na(gbm))
+# [1] 204
+
+# Define your categorical variables
+categorical_vars <- c("country", "line_of_therapy", "gender", "race", 
+                      "adequate_caretaker_support", "patient_travel_time_lt30min", 
+                      "patient_level_of_involvement", "patient_treatment_goals", 
+                      "primary_insurance", "ecog_at_1st_line", 
+                      "ecog_at_2nd_line", "mgmt_methylated", "egfr_mutated", 
+                      "tp53_mutated", "idh1_idh2_mutated", "pd_l1_overexpressed", 
+                      "regimen_in_1st_line", "regimen_in_2nd_line", "combined_comorbidities")
+
+# Function to apply unique() to all categorical variables
+apply_unique <- function(data, vars) {
+  for (var in vars) {
+    cat("Unique values for", var, ":\n")
+    print(unique(data[[var]]))
+    cat("\n")
+  }
+  
+  # Apply unique() to variables starting with "Comorbidity_"
+  comorbidity_vars <- names(data)[str_starts(names(data), "comorbidity_")]
+  for (var in comorbidity_vars) {
+    cat("Unique values for", var, ":\n")
+    print(unique(data[[var]]))
+    cat("\n")
+  }
+}
+
+# Apply the function to your data
+apply_unique(gbm, categorical_vars)
+```
+
+#### Patient Behaviors & Insurance
+
+Patient's level of involvement in GBM and treatment goal differs by their age at diagnosis, their gender, their race, their line of therapy, their primary insurance, the comorbidity they have, their travel time (if less than 30 minutes), whether there is adequate support from caretaker, and the percent of tumor mass surgically resected.
+
+```{r EDA and Visualizations, results='hide', echo=FALSE, message=FALSE, warning=FALSE, fig.width=8, fig.height=3}
+# 1. Bivariate Analysis
+
+# Filter out the entries with "Unknown" in the outcome variables
+gbm_filtered <- gbm %>%
+  filter(patient_level_of_involvement != "Unknown", patient_treatment_goals != "Unknown")
+
+# age_at_diagnosis
+glm(patient_level_of_involvement ~ age_at_diagnosis, data = gbm_filtered, family = binomial) %>% summary()
+glm(patient_treatment_goals ~ age_at_diagnosis, data = gbm_filtered, family = binomial) %>% summary()
+
+# gender
+glm(patient_level_of_involvement ~ gender, data = gbm_filtered, family = binomial) %>% summary()
+glm(patient_treatment_goals ~ gender, data = gbm_filtered, family = binomial) %>% summary()
+
+# race
+glm(patient_level_of_involvement ~ race, data = gbm_filtered, family = binomial) %>% summary()
+glm(patient_treatment_goals ~ race, data = gbm_filtered, family = binomial) %>% summary()
+
+# line_of_therapy
+glm(patient_level_of_involvement ~ line_of_therapy, data = gbm_filtered, family = binomial) %>% summary()
+glm(patient_treatment_goals ~ line_of_therapy, data = gbm_filtered, family = binomial) %>% summary()
+
+# primary_insurance
+glm(patient_level_of_involvement ~ primary_insurance, data = gbm_filtered, family = binomial) %>% summary()
+glm(patient_treatment_goals ~ primary_insurance, data = gbm_filtered, family = binomial) %>% summary()
+
+# comorbidity_count
+glm(patient_level_of_involvement ~ comorbidity_count, data = gbm_filtered, family = binomial) %>% summary()
+glm(patient_treatment_goals ~ comorbidity_count, data = gbm_filtered, family = binomial) %>% summary()
+
+# patient_travel_time_lt30min
+glm(patient_level_of_involvement ~ patient_travel_time_lt30min, data = gbm_filtered, family = binomial) %>% summary()
+glm(patient_treatment_goals ~ patient_travel_time_lt30min, data = gbm_filtered, family = binomial) %>% summary()
+
+# adequate_caretaker_support
+glm(patient_level_of_involvement ~ adequate_caretaker_support, data = gbm_filtered, family = binomial) %>% summary()
+glm(patient_treatment_goals ~ adequate_caretaker_support, data = gbm_filtered, family = binomial) %>% summary()
+
+# pct_of_tumor_mass_surgically_resected
+glm(patient_level_of_involvement ~ pct_of_tumor_mass_surgically_resected, data = gbm_filtered, family = binomial) %>% summary()
+glm(patient_treatment_goals ~ pct_of_tumor_mass_surgically_resected, data = gbm_filtered, family = binomial) %>% summary()
+
+library(ggplot2)
+
+ggplot(gbm, aes(x = patient_level_of_involvement)) +
+  geom_bar(fill = "darkblue") +
+  facet_grid(. ~ primary_insurance) + 
+  labs(title = "Bar Plot of patient involvement, by primary insurance", x = "Patient Involvement", s = "Count") + 
+  theme(
+    title = element_text(size=8),
+    axis.text.x = element_text(size=5), 
+    axis.text.y = element_text(size=8),
+    strip.text = element_text(size = 5))
+
+ggplot(gbm, aes(x = patient_treatment_goals)) +
+  geom_bar(fill = "darkblue") +
+  facet_grid(. ~ primary_insurance) + 
+  labs(title = "Bar Plot of patient treatment goals, by primary insurance", x = "Patient Treatment Goal", s = "Count") + 
+  theme(
+    title = element_text(size=8),
+    axis.text.x = element_text(size=5), 
+    axis.text.y = element_text(size=8),
+    strip.text = element_text(size = 5))
+```
+
+```{r Bivariate Logistic Regression, echo=FALSE, warning=FALSE, message=FALSE}
+# Load necessary libraries
+library(dplyr)
+library(broom)
+
+# Perform logistic regression analysis as you've already done
+
+# Create a list of models and variable names for both patient_level_of_involvement and patient_treatment_goals
+models <- list(
+  level_of_involvement = list(
+    age_at_diagnosis = glm(patient_level_of_involvement ~ age_at_diagnosis, data = gbm_filtered, family = binomial),
+    gender = glm(patient_level_of_involvement ~ gender, data = gbm_filtered, family = binomial),
+    race = glm(patient_level_of_involvement ~ race, data = gbm_filtered, family = binomial),
+    line_of_therapy = glm(patient_level_of_involvement ~ line_of_therapy, data = gbm_filtered, family = binomial),
+    primary_insurance = glm(patient_level_of_involvement ~ primary_insurance, data = gbm_filtered %>% filter(gender != "Unknown"), family = binomial),
+    comorbidity_count = glm(patient_level_of_involvement ~ comorbidity_count, data = gbm_filtered, family = binomial),
+    patient_travel_time_lt30min = glm(patient_level_of_involvement ~ patient_travel_time_lt30min, data = gbm_filtered %>% filter(patient_travel_time_lt30min != 9), family = binomial),
+    adequate_caretaker_support = glm(patient_level_of_involvement ~ adequate_caretaker_support, data = gbm_filtered %>% filter(adequate_caretaker_support != 9), family = binomial),
+    pct_of_tumor_mass_surgically_resected = glm(patient_level_of_involvement ~ pct_of_tumor_mass_surgically_resected, data = gbm_filtered, family = binomial)
+  ),
+  treatment_goals = list(
+    age_at_diagnosis = glm(patient_treatment_goals ~ age_at_diagnosis, data = gbm_filtered, family = binomial),
+    gender = glm(patient_treatment_goals ~ gender, data = gbm_filtered, family = binomial),
+    race = glm(patient_treatment_goals ~ race, data = gbm_filtered, family = binomial),
+    line_of_therapy = glm(patient_treatment_goals ~ line_of_therapy, data = gbm_filtered, family = binomial),
+    primary_insurance = glm(patient_treatment_goals ~ primary_insurance, data = gbm_filtered, family = binomial),
+    comorbidity_count = glm(patient_treatment_goals ~ comorbidity_count, data = gbm_filtered, family = binomial),
+    patient_travel_time_lt30min = glm(patient_treatment_goals ~ patient_travel_time_lt30min, data = gbm_filtered, family = binomial),
+    adequate_caretaker_support = glm(patient_treatment_goals ~ adequate_caretaker_support, data = gbm_filtered, family = binomial),
+    pct_of_tumor_mass_surgically_resected = glm(patient_treatment_goals ~ pct_of_tumor_mass_surgically_resected, data = gbm_filtered, family = binomial)
+  )
+)
+
+# Function to extract and summarize significant results
+summarize_significant <- function(model_list, level_of_significance = 0.05) {
+  results <- bind_rows(
+    lapply(names(model_list), function(outcome) {
+      lapply(names(model_list[[outcome]]), function(variable) {
+        tidy(model_list[[outcome]][[variable]]) %>%
+          filter(p.value < level_of_significance, term != "(Intercept)") %>%
+          mutate(outcome = outcome,
+                 variable = variable)
+      })
+    }) %>% bind_rows()
+  ) %>%
+  select(term, outcome, estimate, p.value)
+
+  return(results)
+}
+
+# Call the function to get significant results
+significant_results <- summarize_significant(models)
+
+# Display the final table with selected columns
+print("Bivariate Logistic Regression Analysis, significant at 5% level:")
+significant_results %>% knitr::kable()
+```
+
+Additionally, multiple variable logistic regression including all exposures with significant bivariate result found: 
+
+```{r Multiple Variable Logistic Regression, echo=FALSE, warning=FALSE, message=FALSE, fig.width=12, fig.height=7}
+library(broom)
+library(knitr)
+# Logistic regression model for 'level_of_involvement'
+model_level_of_involvement <- glm(patient_level_of_involvement ~ age_at_diagnosis + 
+                                  race +
+                                  patient_travel_time_lt30min +
+                                  pct_of_tumor_mass_surgically_resected,
+                                  family = "binomial", data = gbm)
+
+# Logistic regression model for 'treatment_goals'
+model_treatment_goals <- glm(patient_treatment_goals ~ age_at_diagnosis + 
+                              gender +
+                              line_of_therapy +
+                              adequate_caretaker_support,
+                              family = "binomial", data = gbm)
+
+# Convert model summaries to data frames
+tidy_level_of_involvement <- tidy(model_level_of_involvement, conf.int = TRUE) %>% select("term", "estimate", "std.error", "p.value")
+tidy_treatment_goals <- tidy(model_treatment_goals, conf.int = TRUE) %>% select("term", "estimate", "std.error", "p.value")
+
+# Print tables
+print("Multivariable Logistic Regression Analysis, Outcome = Patient's Level of Involvement:")
+knitr::kable(tidy_level_of_involvement)
+print("Multivariable Logistic Regression Analysis, Outcome = Patient's Treatment Goals:")
+knitr::kable(tidy_treatment_goals)
+
+# Install and load required packages
+if (!require("effects")) install.packages("effects", dependencies=TRUE)
+library(effects)
+
+
+# Reset the plotting area to a single plot
+par(mfrow = c(1, 1), cex.lab = 1, cex.axis = 1, cex.main = 1)
+# Predicted probabilities for level_of_involvement model
+print("Predicted Probabilities Plots, Outcome = patient involvement level")
+plot(allEffects(model_level_of_involvement))
+# Predicted probabilities for treatment_goals model
+print("Predicted Probabilities Plots, Outcome = patient treatment goals")
+plot(allEffects(model_treatment_goals))
+```
+
+
+## **Discussion Questions**
+
 ### **Market Landscape**
 
 Given the poor prognosis and limited efficacy of current treatments, there's a notable unmet need for new therapies in the GBM market. Numerous pharmaceutical and biotech companies are conducting research on new treatments, encompassing targeted therapies, immunotherapies, and personalized medicine approaches. Clinical trials are underway to evaluate various novel agents and treatment modalities.
@@ -29,8 +581,6 @@ Given the poor prognosis and limited efficacy of current treatments, there's a n
 - Targeted therapies based on molecular and genetic profiling of tumors.
 - Immunotherapies designed to engage the immune system to recognize and attack GBM cells.
 - Advanced drug delivery systems, such as nanoparticles or convection-enhanced delivery.
-
-### **Market Analysis**
 
 #### Market Risks
 
@@ -56,324 +606,3 @@ Given the poor prognosis and limited efficacy of current treatments, there's a n
 #### Market Insights
 
 The cost of existing treatments varies significantly, ranging from surgical procedures and radiation therapy to chemotherapy drugs like Temozolomide. Costs are influenced by factors like insurance coverage, geographic location, and treatment duration. Additionally, the introduction of innovative therapies, including Tumor Treating Fields (TTF) through devices like Optune, adds complexity to the market.
-
-## Descriptive Statistics
-
-```{r data import and cleaning, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
-# Load the packages
-library(dplyr)
-
-# Read the dataset
-gbm <- read.csv("GBM patient data.csv") |>
-  janitor::clean_names()
-colnames(gbm)
-# [1] "md_id"                                 "patient_id"                           
-# [3] "country"                               "line_of_therapy"                      
-# [5] "year_of_birth"                         "age_at_diagnosis"                     
-# [7] "gender"                                "race"                                 
-# [9] "adequate_caretaker_support"            "travel_time_to_your_office_30_min"    
-#[11] "patient_s_level_of_involvement_in_gbm" "patient_s_treatment_goals"            
-#[13] "primary_insurance"                     "comorbidity_renal_impairment"         
-#[15] "comorbidity_anemia"                    "comorbidity_copd_pulmonary"           
-#[17] "comorbidity_diabetes"                  "comorbidity_chf_cong_heart_failure"   
-#[19] "comorbidity_neuropathies"              "comorbidity_other_neurological"       
-#[21] "comorbidity_hepatic_insufficiency"     "comorbidity_other_cytopenia"          
-#[23] "comorbidity_autoimmune_disorder"       "comorbidity_hypertension"             
-#[25] "comorbidity_other_cardiovascular"      "comorbidity_alzheimer_s"              
-#[27] "comorbidity_other_cancer_besides_gbm"  "comorbidity_other_specify"            
-#[29] "comorbidity_other_specify_1"           "comorbidity_none"                     
-#[31] "ecog_at_1st_line"                      "ecog_at_2nd_line"                     
-#[33] "mgmt_methylated"                       "egfr_mutated"                         
-#[35] "tp53_mutated"                          "idh1_idh2_mutated"                    
-#[37] "pd_l1_overexpressed"                   "x_of_tumor_mass_surgically_resected"  
-#[39] "regimen_in_1st_line"                   "regimen_in_1st_line_other"            
-#[41] "regimen_in_2nd_line"                   "regimen_in_2nd_line_other" 
-
-summary(gbm)
-#     md_id         patient_id       country          line_of_therapy    year_of_birth  age_at_diagnosis
-# Min.   :10487   Min.   :104871   Length:750         Length:750         Min.   :1925   Min.   :19.00   
-# 1st Qu.:11439   1st Qu.:114393   Class :character   Class :character   1st Qu.:1950   1st Qu.:48.00   
-# Median :13266   Median :132663   Mode  :character   Mode  :character   Median :1957   Median :57.00   
-# Mean   :12604   Mean   :126047                                         Mean   :1958   Mean   :56.90   
-# 3rd Qu.:13462   3rd Qu.:134623                                         3rd Qu.:1966   3rd Qu.:65.75   
-# Max.   :13536   Max.   :135365                                         Max.   :1996   Max.   :88.00   
-#    gender              race           adequate_caretaker_support travel_time_to_your_office_30_min
-# Length:750         Length:750         Min.   :0.000              Min.   :0.0000                   
-# Class :character   Class :character   1st Qu.:0.000              1st Qu.:0.0000                   
-# Mode  :character   Mode  :character   Median :1.000              Median :0.0000                   
-#                                       Mean   :1.244              Mean   :0.9467                   
-#                                       3rd Qu.:1.000              3rd Qu.:1.0000                   
-#                                       Max.   :9.000              Max.   :9.0000                   
-# patient_s_level_of_involvement_in_gbm patient_s_treatment_goals primary_insurance  comorbidity_renal_impairment
-# Length:750                            Length:750                Length:750         Min.   :0.0000              
-# Class :character                      Class :character          Class :character   1st Qu.:0.0000              
-# Mode  :character                      Mode  :character          Mode  :character   Median :0.0000              
-#                                                                                    Mean   :0.1053              
-#                                                                                    3rd Qu.:0.0000              
-#                                                                                    Max.   :1.0000              
-# comorbidity_anemia comorbidity_copd_pulmonary comorbidity_diabetes comorbidity_chf_cong_heart_failure
-# Min.   :0.000      Min.   :0.0000             Min.   :0.000        Min.   :0.000                     
-# 1st Qu.:0.000      1st Qu.:0.0000             1st Qu.:0.000        1st Qu.:0.000                     
-# Median :0.000      Median :0.0000             Median :0.000        Median :0.000                     
-# Mean   :0.156      Mean   :0.1147             Mean   :0.184        Mean   :0.056                     
-# 3rd Qu.:0.000      3rd Qu.:0.0000             3rd Qu.:0.000        3rd Qu.:0.000                     
-# Max.   :1.000      Max.   :1.0000             Max.   :1.000        Max.   :1.000                     
-# comorbidity_neuropathies comorbidity_other_neurological comorbidity_hepatic_insufficiency
-# Min.   :0.00000          Min.   :0.00000                Min.   :0.00000                  
-# 1st Qu.:0.00000          1st Qu.:0.00000                1st Qu.:0.00000                  
-# Median :0.00000          Median :0.00000                Median :0.00000                  
-# Mean   :0.06267          Mean   :0.02267                Mean   :0.02667                  
-# 3rd Qu.:0.00000          3rd Qu.:0.00000                3rd Qu.:0.00000                  
-# Max.   :1.00000          Max.   :1.00000                Max.   :1.00000                  
-# comorbidity_other_cytopenia comorbidity_autoimmune_disorder comorbidity_hypertension
-# Min.   :0.00000             Min.   :0.000                   Min.   :0.00            
-# 1st Qu.:0.00000             1st Qu.:0.000                   1st Qu.:0.00            
-# Median :0.00000             Median :0.000                   Median :0.00            
-# Mean   :0.03067             Mean   :0.024                   Mean   :0.24            
-# 3rd Qu.:0.00000             3rd Qu.:0.000                   3rd Qu.:0.00            
-# Max.   :1.00000             Max.   :1.000                   Max.   :1.00            
-# comorbidity_other_cardiovascular comorbidity_alzheimer_s comorbidity_other_cancer_besides_gbm
-# Min.   :0.000                    Min.   :0.00000         Min.   :0.000                       
-# 1st Qu.:0.000                    1st Qu.:0.00000         1st Qu.:0.000                       
-# Median :0.000                    Median :0.00000         Median :0.000                       
-# Mean   :0.064                    Mean   :0.01333         Mean   :0.016                       
-# 3rd Qu.:0.000                    3rd Qu.:0.00000         3rd Qu.:0.000                       
-# Max.   :1.000                    Max.   :1.00000         Max.   :1.000                       
-# comorbidity_other_specify comorbidity_other_specify_1 comorbidity_none ecog_at_1st_line ecog_at_2nd_line
-# Min.   :0.00000           Length:750                  Min.   :0.0000   Min.   :0.00     Min.   :0.000   
-# 1st Qu.:0.00000           Class :character            1st Qu.:0.0000   1st Qu.:1.00     1st Qu.:1.000   
-# Median :0.00000           Mode  :character            Median :0.0000   Median :1.00     Median :2.000   
-# Mean   :0.01733                                       Mean   :0.4733   Mean   :1.28     Mean   :4.479   
-# 3rd Qu.:0.00000                                       3rd Qu.:1.0000   3rd Qu.:2.00     3rd Qu.:9.000   
-# Max.   :1.00000                                       Max.   :1.0000   Max.   :4.00     Max.   :9.000   
-# mgmt_methylated  egfr_mutated    tp53_mutated   idh1_idh2_mutated pd_l1_overexpressed
-# Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000     Min.   :0.000      
-# 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:1.000   1st Qu.:1.000     1st Qu.:1.000      
-# Median :1.000   Median :9.000   Median :9.000   Median :9.000     Median :9.000      
-# Mean   :3.391   Mean   :4.849   Mean   :5.471   Mean   :5.953     Mean   :5.925      
-# 3rd Qu.:9.000   3rd Qu.:9.000   3rd Qu.:9.000   3rd Qu.:9.000     3rd Qu.:9.000      
-# Max.   :9.000   Max.   :9.000   Max.   :9.000   Max.   :9.000     Max.   :9.000      
-# x_of_tumor_mass_surgically_resected regimen_in_1st_line regimen_in_1st_line_other regimen_in_2nd_line
-# Min.   : 10.0                       Length:750          Length:750                Length:750         
-# 1st Qu.: 56.0                       Class :character    Class :character          Class :character   
-# Median : 90.0                       Mode  :character    Mode  :character          Mode  :character   
-# Mean   :322.8                                                                                        
-# 3rd Qu.:999.0                                                                                        
-# Max.   :999.0                                                                                        
-# regimen_in_2nd_line_other
-# Length:750               
-# Class :character         
-# Mode  :character 
-
-unique(gbm$country)
-# "US"
-unique(gbm$line_of_therapy)
-# "1L" "2L"
-unique(gbm$race)
-# "Black/African" "White/Caucasian" "Spanish/Hispanic/Latino" "Asian" "Other" 
-unique(gbm$gender)
-# "Male" "Female"
-unique(gbm$patient_s_level_of_involvement_in_gbm)
-# "Active / knowledgeable / questioning" "Average level of engagement with the disease" 
-# "Passive / not interested / unengaged" 
-unique(gbm$patient_s_treatment_goals)
-# "More focused on Survival" "More focused on Quality of Life"
-unique(gbm$primary_insurance)
-# "HMO" "PPO" "9" "Medicare" "Medicaid" "VA/Other government" "Uninsured" "Exchange" "Other"  
-unique(gbm$comorbidity_other_specify_1)
-# [1] " "                                                "disc disease"                                    
-# [3] "elevated cholesterol, Herniated disc s/p surgery" "obesity"                                         
-# [5] "parkinson's disease"                              "arthritis"                                       
-# [7] "aortic aneurysm"                                  "bipolar"                                         
-# [9] "obese"                                       
-unique(gbm$regimen_in_1st_line)
-# [1] "Avastin mono"         "Avastin + Lomustine"  "Avastin + Irinotecan" "Avastin + TMZ"       
-# [5] "TMZ mono"             "Lomustine mono"       "Gliadel wafers"       "Other"   
-unique(gbm$regimen_in_1st_line_other)
-# " " "Irinotecan" "lomustine" 
-unique(gbm$regimen_in_2nd_line)
-# [1] "999"                  "Avastin mono"         "TMZ mono"             "Lomustine mono"      
-# [5] "Avastin + TMZ"        "Avastin + Irinotecan" "Avastin + Lomustine"  "Gliadel wafers"      
-# [9] "Other"               
-unique(gbm$regimen_in_2nd_line_other)
-# " " "bevacizumab" "cyberknife and temozolomide"
-```
-
-```{r Variable Descriptions, echo = FALSE}
-# Following is me guessing what each variable might represent, given the data entries and research on GBM.
-# MD_ID: Identifier for a medical doctor or healthcare provider.
-# PATIENT_ID: Identifier for individual patients.
-# COUNTRY: The country in which the patient is located or being treated. There is only 1 unique entry: US.
-# Line of therapy: Indicates which line of treatment or therapy the patient is on (first or second).
-# Year of birth: The birth year of the patient.
-# Age at diagnosis: The age of the patient at the time of GBM diagnosis.
-# Gender: Male, Female.
-# Race: White/Caucasian, Black/African, Spanish/Hispanic/Latino, Asian, and Other.
-# Adequate caretaker support: Indicates whether the patient has adequate support from caretaker. Likely a binary variable (0 = no, 1 = yes, 9 = unknown).
-# Travel time to your office < 30 min: Indicates whether the patient's travel time to a medical facility is less than 30 minutes. Likely a binary variable (0 = no, 1 = yes, 9 = unknown).
-# Patient's level of involvement in GBM: Average level of engagement, Active, and Passive.
-# Patient's treatment goals: More focused on survival, or More focused on quality of life.
-# Primary insurance: The primary type of health insurance coverage for the patient. HMO, PPO, Medicare, Medicaid, VA/Other government, Exchange, Uninsured, Other, 9 (likely entry for unknown).
-
-# Comorbidity: Indicates the presence or absence of various comorbid health conditions (0 = no, 1 = yes).
-
-# ECOG At 1st Line: Likely related to the patient's health status or performance at the time of the first treatment line.
-# ECOG At 2nd Line: Similar to the above but for the second treatment line.
-
-# ECOG Performance Status is a scale used to assess the functional status of cancer patients, with lower values indicating better functional status and higher values indicating worse functional status.
-# ECOG 0: Fully active, able to carry on all activities without restriction.
-# ECOG 1: Restricted in physically strenuous activity but able to walk and carry out light work.
-# ECOG 2: Ambulatory and capable of self-care, but unable to work; out of bed more than 50% of waking hours.
-# ECOG 3: Capable of only limited self-care, confined to bed or chair more than 50% of waking hours.
-# ECOG 4: Completely disabled, cannot carry out any self-care, confined to bed or chair all the time.
-# ECOG 9: Unknown
-
-# MGMT methylated: May refer to the methylation status of the O-6-methylguanine-DNA methyltransferase (MGMT) gene (0 = no, 1 = yes, 9 = unknown).
-# EGFR mutated: Likely indicates the presence of epidermal growth factor receptor (EGFR) mutations (0 = no, 1 = yes, 9 = unknown).
-# TP53 mutated: Indicates the presence of mutations in the TP53 gene (0 = no, 1 = yes, 9 = unknown).
-# IDH1/IDH2 mutated: Refers to mutations in the isocitrate dehydrogenase (IDH) genes (0 = no, 1 = yes, 9 = unknown).
-# PD-L1 overexpressed: Indicates overexpression of programmed death-ligand 1 (PD-L1) (0 = no, 1 = yes, 9 = unknown).
-# % of tumor mass surgically resected: The percentage of the tumor mass that was surgically removed (numeric variable ranges from 0 to 100, with 999 = unknown).
-# Regimen in 1st Line: Describes the treatment regimen used in the first line of therapy. 999 = unknown.
-# Regimen in 1st Line (Other): Additional details about the first-line treatment regimen. 
-# Regimen in 2nd Line: Describes the treatment regimen used in the second line of therapy. 999 = unknown.
-# Regimen in 2nd Line (Other): Additional details about the second-line treatment regimen. 
-```
-
-```{r Recoding variables, message=FALSE, warning=FALSE, echo=FALSE}
-# Identify variables with names starting with "comorbidity_"
-comorbidity_vars <- grep("^comorbidity_", names(gbm), value = TRUE)
-
-# Filter out numeric variables from comorbidity variables (binary, 1 = yes and 0 = no)
-comorbidity_num_vars <- comorbidity_vars[sapply(gbm[comorbidity_vars], is.numeric)]
-
-# Recode the data
-gbm <- gbm %>%
-  # Recode "comorbidity_" numeric variables as "No" or "Yes"
-  mutate(across(all_of(comorbidity_num_vars), ~ ifelse(. == 0, "No", "Yes"))) %>%
-  # Recode specified variables based on criteria
-  mutate(across(all_of(c(
-    "adequate_caretaker_support", 
-    "travel_time_to_your_office_30_min", 
-    "mgmt_methylated", 
-    "egfr_mutated", 
-    "tp53_mutated", 
-    "idh1_idh2_mutated", 
-    "pd_l1_overexpressed")), 
-    ~case_when(
-      . == 0 ~ "No",       # Replace 0 with the value representing "no"
-      . == 1 ~ "Yes",      # Replace 1 with the value representing "yes"
-      . == 9 ~ "Unknown",  # Replace 9 with the value representing "unknown"
-      TRUE ~ as.character(.) # Keep other values as they are
-      ))) %>%
-  # Recode ECOG variables with specific criteria
-  mutate(across(all_of(c("ecog_at_1st_line", "ecog_at_2nd_line")), 
-                ~case_when(
-                  . %in% c(0, 1, 2, 3, 4) ~ as.character(paste("ECOG", .)),
-                  . == 9 ~ "Unknown",
-                  TRUE ~ as.character(.)
-                  ))) %>%
-  # Recode character variables based on criteria
-  mutate(across(
-    all_of(c("regimen_in_2nd_line", "primary_insurance")),
-    ~ ifelse(. == "999" | . == "9", "Unknown", .)
-    )) %>%
-  mutate(x_of_tumor_mass_surgically_resected = 
-           ifelse(x_of_tumor_mass_surgically_resected == 999, NA, x_of_tumor_mass_surgically_resected)) %>%
-  rename(pct_of_tumor_mass_surgically_resected = x_of_tumor_mass_surgically_resected, 
-         patient_level_of_involvement = patient_s_level_of_involvement_in_gbm, 
-         comorbidity_alzheimer = comorbidity_alzheimer_s, 
-         comorbidity_other_cancer_notgbm = comorbidity_other_cancer_besides_gbm, 
-         patient_travel_time_lt30min = travel_time_to_your_office_30_min, 
-         patient_treatment_goals = patient_s_treatment_goals)
-```
-
-
-```{r Descriptive Statistics, message=FALSE, warning=FALSE, echo=FALSE}
-# Load necessary libraries
-library(dplyr)
-library(tidyverse)
-library(psych)
-
-# 1. Calculate summary statistics for continuous variables:
-
-# Select the variables to compute descriptive statistics
-numeric_vars <- gbm %>%
-  select_if(is.numeric) %>%
-  select(-md_id, -patient_id)
-
-# Calculate summary statistics
-summary_stats <- describe(numeric_vars) %>% select(mean, sd, min, max, range)
-
-# Print the statistic table
-print("Summary statistics for numeric variables:")
-summary_stats |> knitr::kable()
-
-# 2. Generate frequency tables for categorical variables
-
-# Define the categorical variables you want to analyze
-categorical_vars <- gbm %>%
-  select_if(is.character)
-
-# Create an empty data frame to store the results
-result_df <- data.frame(Variable = character(0), Categories = character(0), Count = numeric(0), Percent = character(0))
-
-# Loop through the categorical variables
-for (var in colnames(categorical_vars)) {
-  cat_summary <- gbm %>% 
-    group_by(!!sym(var)) %>%
-    summarize(Count = n()) %>%
-    mutate(Percent = scales::percent(Count / sum(Count), scale = 100))
-  # Add the variable name to the results
-  cat_summary <- cat_summary %>%
-    mutate(Variable = var)
-  # Rename the categories column
-  names(cat_summary)[names(cat_summary) == var] <- "Categories"
-  # Select and arrange the columns
-  cat_summary <- cat_summary %>%
-    select(Variable, Categories, Count, Percent)
-  # Append to the result data frame
-  result_df <- bind_rows(result_df, cat_summary)
-}
-
-# Ensure Variable and Categories are character type
-result_df$Variable <- as.character(result_df$Variable)
-result_df$Categories <- as.character(result_df$Categories)
-
-# Reorder the columns
-result_df <- result_df[, c("Variable", "Categories", "Count", "Percent")]
-
-# Print the combined table
-print("Frequency table for categorical variables:")
-result_df %>% knitr::kable()
-```
-
-```{r further analysis, echo = FALSE}
-# 4. Logistic Regression:
-# Conduct logistic regression to understand factors associated with specific outcomes
-
-# Example:
-# logistic_model <- glm(outcome_variable ~ diabetes, data = gbm, family = "binomial")
-# summary(logistic_model)
-
-# 7. Market Segmentation:
-# You can use clustering algorithms like k-means for market segmentation.
-# Assuming you want to segment based on age_at_diagnosis and x_of_tumor_mass_surgically_resected
-
-# Example:
-# segmentation_data <- gbm[, c("age_at_diagnosis", "x_of_tumor_mass_surgically_resected")]
-# k <- 4
-# kmeans_result <- kmeans(segmentation_data, centers = k)
-# gbm$cluster <- kmeans_result$cluster
-# print(table(gbm$cluster))
-
-# 10. Regression Analysis:
-# Perform regression analysis to determine the impact of variables on patient outcomes
-
-# Example:
-# regression_model <- lm(outcome_variable ~ ecog_at_1st_line, data = gbm)
-# summary(regression_model)
-```
-
-## **Discussion Questions**
-
