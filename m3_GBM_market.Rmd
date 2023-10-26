@@ -9,30 +9,59 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Overview
+## Background Research
 
-This report aims to provide a comprehensive analysis of the Glioblastoma Multiforme (GBM) therapeutic area to support our client's decision-making process as they consider entering this highly specialized field. By leveraging the attached GBM patient data in .csv format, our analysis is focused on understanding the structure of the GBM market, particularly in terms of identifying clinically meaningful patient sub-segments that are currently treated differently. Our goal is to unveil distinct opportunities within this challenging and vital medical landscape.
+### **Introduction**
 
-In this report, we will:
+This report offers a comprehensive analysis of the Glioblastoma Multiforme (GBM) therapeutic area to facilitate our client's decision-making process as they contemplate entering this specialized field. Our primary focus is on understanding the structure of the GBM market, specifically identifying clinically significant patient subgroups that receive distinct treatments. The ultimate objective is to unveil distinct opportunities within this challenging and critical medical landscape.
 
-1. Conduct a detailed examination of the GBM market, including its current status, challenges, and potential growth areas.
+### **GBM Overview**
 
-2. Analyze the patient data to identify patient sub-segments that exhibit unique clinical characteristics or treatment patterns.
+Glioblastoma Multiforme (GBM) stands as the most common and aggressive primary malignant brain tumor in adults. It originates from glial cells in the brain, particularly astrocytes. GBM is characterized by its highly invasive nature, rapid growth rate, and a high recurrence rate, making it a formidable challenge to treat. The standard treatment protocol includes surgery, radiation, and chemotherapy, with Temozolomide being a common chemotherapy drug. Despite aggressive treatment, prognosis remains bleak, with a median survival of 12-15 months.
 
-3. Present findings and insights that will guide a 30-minute discussion with the management team, addressing the specific interests of our client.
+### **Market Landscape**
 
-4. Offer strategic recommendations based on our analysis to inform our client's potential entry strategy into the GBM therapeutic area.
+Given the poor prognosis and limited efficacy of current treatments, there's a notable unmet need for new therapies in the GBM market. Numerous pharmaceutical and biotech companies are conducting research on new treatments, encompassing targeted therapies, immunotherapies, and personalized medicine approaches. Clinical trials are underway to evaluate various novel agents and treatment modalities.
 
-5. By undertaking this analysis, we aim to facilitate a well-informed discussion that will lead to effective decision-making and market positioning for our client.
+### **Potential Market Opportunities**
 
+- Development of drugs with the ability to effectively cross the blood-brain barrier (BBB).
+- Targeted therapies based on molecular and genetic profiling of tumors.
+- Immunotherapies designed to engage the immune system to recognize and attack GBM cells.
+- Advanced drug delivery systems, such as nanoparticles or convection-enhanced delivery.
 
+### **Market Analysis**
+
+#### Market Risks
+
+- Stringent regulatory pathways due to the aggressive nature of GBM and past drug development failures.
+- Challenges in clinical trial design related to the heterogeneity of the disease.
+- Competition from existing and emerging therapies.
+- Payer and reimbursement challenges due to the high costs of cancer therapies.
+
+#### Competitive Landscape & Ongoing Clinical Trials
+
+- Evaluation of current treatments, including surgery, radiation, and chemotherapy (Temozolomide).
+- Identification of industry leaders, their drug candidates, and market share.
+- Focused analysis on late-stage clinical trials and recent trends.
+- Examination of trial results, particularly notable successes and failures.
+
+#### Collaboration Opportunities & Regulatory Considerations
+
+- Exploration of potential partnerships with research institutions, pharmaceutical, and biotech companies.
+- Engagement with patient organizations.
+- Thorough review of FDA and EMA guidelines for oncology drug approvals.
+- Comprehension of expedited pathways such as Breakthrough Therapy and Fast Track.
+
+#### Market Insights
+
+The cost of existing treatments varies significantly, ranging from surgical procedures and radiation therapy to chemotherapy drugs like Temozolomide. Costs are influenced by factors like insurance coverage, geographic location, and treatment duration. Additionally, the introduction of innovative therapies, including Tumor Treating Fields (TTF) through devices like Optune, adds complexity to the market.
 
 ## Descriptive Statistics
 
 ```{r data import and cleaning, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
 # Load the packages
 library(dplyr)
-library(psych)
 
 # Read the dataset
 gbm <- read.csv("GBM patient data.csv") |>
@@ -168,37 +197,183 @@ unique(gbm$regimen_in_2nd_line)
 # [9] "Other"               
 unique(gbm$regimen_in_2nd_line_other)
 # " " "bevacizumab" "cyberknife and temozolomide"
-
-# Select the variables for which you want to compute descriptive statistics
-selected_vars <- gbm |>
-  select(age_at_diagnosis, travel_time_to_your_office_30_min, x_of_tumor_mass_surgically_resected)
-
-# Calculate summary statistics
-summary_stats <- describe(selected_vars)
-
-# View the summary statistics
-print(summary_stats)
-
-# Generate frequency table for 'gender'
-gender_freq <- table(gbm$gender)
-
-# Display the frequency table for 'gender'
-print("Frequency Table for Gender:")
-print(gender_freq)
-
-# Generate frequency table for 'race'
-race_freq <- table(gbm$race)
-
-# Display the frequency table for 'race'
-print("Frequency Table for Race:")
-print(race_freq)
-
-# Generate frequency table for 'primary_insurance'
-insurance_freq <- table(gbm$primary_insurance)
-
-# Display the frequency table for 'primary_insurance'
-print("Frequency Table for Primary Insurance:")
-print(insurance_freq)
 ```
 
+```{r Variable Descriptions, echo = FALSE}
+# Following is me guessing what each variable might represent, given the data entries and research on GBM.
+# MD_ID: Identifier for a medical doctor or healthcare provider.
+# PATIENT_ID: Identifier for individual patients.
+# COUNTRY: The country in which the patient is located or being treated. There is only 1 unique entry: US.
+# Line of therapy: Indicates which line of treatment or therapy the patient is on (first or second).
+# Year of birth: The birth year of the patient.
+# Age at diagnosis: The age of the patient at the time of GBM diagnosis.
+# Gender: Male, Female.
+# Race: White/Caucasian, Black/African, Spanish/Hispanic/Latino, Asian, and Other.
+# Adequate caretaker support: Indicates whether the patient has adequate support from caretaker. Likely a binary variable (0 = no, 1 = yes, 9 = unknown).
+# Travel time to your office < 30 min: Indicates whether the patient's travel time to a medical facility is less than 30 minutes. Likely a binary variable (0 = no, 1 = yes, 9 = unknown).
+# Patient's level of involvement in GBM: Average level of engagement, Active, and Passive.
+# Patient's treatment goals: More focused on survival, or More focused on quality of life.
+# Primary insurance: The primary type of health insurance coverage for the patient. HMO, PPO, Medicare, Medicaid, VA/Other government, Exchange, Uninsured, Other, 9 (likely entry for unknown).
+
+# Comorbidity: Indicates the presence or absence of various comorbid health conditions (0 = no, 1 = yes).
+
+# ECOG At 1st Line: Likely related to the patient's health status or performance at the time of the first treatment line.
+# ECOG At 2nd Line: Similar to the above but for the second treatment line.
+
+# ECOG Performance Status is a scale used to assess the functional status of cancer patients, with lower values indicating better functional status and higher values indicating worse functional status.
+# ECOG 0: Fully active, able to carry on all activities without restriction.
+# ECOG 1: Restricted in physically strenuous activity but able to walk and carry out light work.
+# ECOG 2: Ambulatory and capable of self-care, but unable to work; out of bed more than 50% of waking hours.
+# ECOG 3: Capable of only limited self-care, confined to bed or chair more than 50% of waking hours.
+# ECOG 4: Completely disabled, cannot carry out any self-care, confined to bed or chair all the time.
+# ECOG 9: Unknown
+
+# MGMT methylated: May refer to the methylation status of the O-6-methylguanine-DNA methyltransferase (MGMT) gene (0 = no, 1 = yes, 9 = unknown).
+# EGFR mutated: Likely indicates the presence of epidermal growth factor receptor (EGFR) mutations (0 = no, 1 = yes, 9 = unknown).
+# TP53 mutated: Indicates the presence of mutations in the TP53 gene (0 = no, 1 = yes, 9 = unknown).
+# IDH1/IDH2 mutated: Refers to mutations in the isocitrate dehydrogenase (IDH) genes (0 = no, 1 = yes, 9 = unknown).
+# PD-L1 overexpressed: Indicates overexpression of programmed death-ligand 1 (PD-L1) (0 = no, 1 = yes, 9 = unknown).
+# % of tumor mass surgically resected: The percentage of the tumor mass that was surgically removed (numeric variable ranges from 0 to 100, with 999 = unknown).
+# Regimen in 1st Line: Describes the treatment regimen used in the first line of therapy. 999 = unknown.
+# Regimen in 1st Line (Other): Additional details about the first-line treatment regimen. 
+# Regimen in 2nd Line: Describes the treatment regimen used in the second line of therapy. 999 = unknown.
+# Regimen in 2nd Line (Other): Additional details about the second-line treatment regimen. 
+```
+
+```{r Recoding variables, message=FALSE, warning=FALSE, echo=FALSE}
+# Identify variables with names starting with "comorbidity_"
+comorbidity_vars <- grep("^comorbidity_", names(gbm), value = TRUE)
+
+# Filter out numeric variables from comorbidity variables (binary, 1 = yes and 0 = no)
+comorbidity_num_vars <- comorbidity_vars[sapply(gbm[comorbidity_vars], is.numeric)]
+
+# Recode the data
+gbm <- gbm %>%
+  # Recode "comorbidity_" numeric variables as "No" or "Yes"
+  mutate(across(all_of(comorbidity_num_vars), ~ ifelse(. == 0, "No", "Yes"))) %>%
+  # Recode specified variables based on criteria
+  mutate(across(all_of(c(
+    "adequate_caretaker_support", 
+    "travel_time_to_your_office_30_min", 
+    "mgmt_methylated", 
+    "egfr_mutated", 
+    "tp53_mutated", 
+    "idh1_idh2_mutated", 
+    "pd_l1_overexpressed")), 
+    ~case_when(
+      . == 0 ~ "No",       # Replace 0 with the value representing "no"
+      . == 1 ~ "Yes",      # Replace 1 with the value representing "yes"
+      . == 9 ~ "Unknown",  # Replace 9 with the value representing "unknown"
+      TRUE ~ as.character(.) # Keep other values as they are
+      ))) %>%
+  # Recode ECOG variables with specific criteria
+  mutate(across(all_of(c("ecog_at_1st_line", "ecog_at_2nd_line")), 
+                ~case_when(
+                  . %in% c(0, 1, 2, 3, 4) ~ as.character(paste("ECOG", .)),
+                  . == 9 ~ "Unknown",
+                  TRUE ~ as.character(.)
+                  ))) %>%
+  # Recode character variables based on criteria
+  mutate(across(
+    all_of(c("regimen_in_2nd_line", "primary_insurance")),
+    ~ ifelse(. == "999" | . == "9", "Unknown", .)
+    )) %>%
+  mutate(x_of_tumor_mass_surgically_resected = 
+           ifelse(x_of_tumor_mass_surgically_resected == 999, NA, x_of_tumor_mass_surgically_resected)) %>%
+  rename(pct_of_tumor_mass_surgically_resected = x_of_tumor_mass_surgically_resected, 
+         patient_level_of_involvement = patient_s_level_of_involvement_in_gbm, 
+         comorbidity_alzheimer = comorbidity_alzheimer_s, 
+         comorbidity_other_cancer_notgbm = comorbidity_other_cancer_besides_gbm, 
+         patient_travel_time_lt30min = travel_time_to_your_office_30_min, 
+         patient_treatment_goals = patient_s_treatment_goals)
+```
+
+
+```{r Descriptive Statistics, message=FALSE, warning=FALSE, echo=FALSE}
+# Load necessary libraries
+library(dplyr)
+library(tidyverse)
+library(psych)
+
+# 1. Calculate summary statistics for continuous variables:
+
+# Select the variables to compute descriptive statistics
+numeric_vars <- gbm %>%
+  select_if(is.numeric) %>%
+  select(-md_id, -patient_id)
+
+# Calculate summary statistics
+summary_stats <- describe(numeric_vars) %>% select(mean, sd, min, max, range)
+
+# Print the statistic table
+print("Summary statistics for numeric variables:")
+summary_stats |> knitr::kable()
+
+# 2. Generate frequency tables for categorical variables
+
+# Define the categorical variables you want to analyze
+categorical_vars <- gbm %>%
+  select_if(is.character)
+
+# Create an empty data frame to store the results
+result_df <- data.frame(Variable = character(0), Categories = character(0), Count = numeric(0), Percent = character(0))
+
+# Loop through the categorical variables
+for (var in colnames(categorical_vars)) {
+  cat_summary <- gbm %>% 
+    group_by(!!sym(var)) %>%
+    summarize(Count = n()) %>%
+    mutate(Percent = scales::percent(Count / sum(Count), scale = 100))
+  # Add the variable name to the results
+  cat_summary <- cat_summary %>%
+    mutate(Variable = var)
+  # Rename the categories column
+  names(cat_summary)[names(cat_summary) == var] <- "Categories"
+  # Select and arrange the columns
+  cat_summary <- cat_summary %>%
+    select(Variable, Categories, Count, Percent)
+  # Append to the result data frame
+  result_df <- bind_rows(result_df, cat_summary)
+}
+
+# Ensure Variable and Categories are character type
+result_df$Variable <- as.character(result_df$Variable)
+result_df$Categories <- as.character(result_df$Categories)
+
+# Reorder the columns
+result_df <- result_df[, c("Variable", "Categories", "Count", "Percent")]
+
+# Print the combined table
+print("Frequency table for categorical variables:")
+result_df %>% knitr::kable()
+```
+
+```{r further analysis, echo = FALSE}
+# 4. Logistic Regression:
+# Conduct logistic regression to understand factors associated with specific outcomes
+
+# Example:
+# logistic_model <- glm(outcome_variable ~ diabetes, data = gbm, family = "binomial")
+# summary(logistic_model)
+
+# 7. Market Segmentation:
+# You can use clustering algorithms like k-means for market segmentation.
+# Assuming you want to segment based on age_at_diagnosis and x_of_tumor_mass_surgically_resected
+
+# Example:
+# segmentation_data <- gbm[, c("age_at_diagnosis", "x_of_tumor_mass_surgically_resected")]
+# k <- 4
+# kmeans_result <- kmeans(segmentation_data, centers = k)
+# gbm$cluster <- kmeans_result$cluster
+# print(table(gbm$cluster))
+
+# 10. Regression Analysis:
+# Perform regression analysis to determine the impact of variables on patient outcomes
+
+# Example:
+# regression_model <- lm(outcome_variable ~ ecog_at_1st_line, data = gbm)
+# summary(regression_model)
+```
+
+## **Discussion Questions**
 
