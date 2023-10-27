@@ -1,6 +1,6 @@
 ---
 title: "Market Analysis and Patient Sub-segment Identification for Glioblastoma Multiforme (GBM) Entry Strategy"
-author: "Presented by: Xuan Lu"
+author: "Presented by Xuan Lu"
 output: pdf_document
 ---
 
@@ -8,11 +8,11 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This report offers a comprehensive analysis of the Glioblastoma Multiforme (GBM) therapeutic area to facilitate our client's decision-making process as they contemplate entering this specialized field. Our primary focus is on understanding the structure of the GBM market, specifically identifying clinically significant patient subgroups that receive distinct treatments. The ultimate objective is to unveil distinct opportunities within this challenging and critical medical landscape.
+This report offers a comprehensive analysis of the Glioblastoma Multiforme (GBM) therapeutic area to facilitate our client's decision-making process as they contemplate entering this specialized field. The primary focus is on understanding the structure of the GBM market, specifically identifying clinically significant patient subgroups that receive distinct treatments. The ultimate objective is to unveil distinct opportunities within this challenging and critical medical landscape.
 
 ## GBM Overview
 
-Glioblastoma Multiforme (GBM) stands as the most common and aggressive primary malignant brain tumor in adults. It originates from glial cells in the brain, particularly astrocytes. GBM is characterized by its highly invasive nature, rapid growth rate, and a high recurrence rate, making it a formidable challenge to treat. The standard treatment protocol includes surgery, radiation, and chemotherapy, with Temozolomide being a common chemotherapy drug. Despite aggressive treatment, prognosis remains bleak.
+Glioblastoma Multiforme (GBM) is a common and very aggressive type of brain cancer in adults. It starts in the glial cells of the brain, mostly from astrocytes. GBM grows quickly, spreads fast, and often comes back after treatment, making it difficult to treat. Common treatments for GBM include surgery, radiation, and chemotherapy. Temozolomide, for example, is one of the most commonly used chemotherapy. As many as the treatments exist, prognosis of GBM remains fairly low-- according to American Cancer Society, the 5-year relative survival rate of GBM is 22% for adults aged 20-44, 9% for aged 45-54, and 6% for aged 55-64.
 
 #### Descriptive Statistics
 
