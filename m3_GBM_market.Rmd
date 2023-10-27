@@ -1,7 +1,6 @@
 ---
 title: "Market Analysis and Patient Sub-segment Identification for Glioblastoma Multiforme (GBM) Entry Strategy"
-author: "Xuan Lu"
-date: "`r Sys.Date()`"
+author: "Presented by: Xuan Lu"
 output: pdf_document
 ---
 
@@ -9,17 +8,13 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Background Research
-
-### **Introduction**
+## Introduction
 
 This report offers a comprehensive analysis of the Glioblastoma Multiforme (GBM) therapeutic area to facilitate our client's decision-making process as they contemplate entering this specialized field. Our primary focus is on understanding the structure of the GBM market, specifically identifying clinically significant patient subgroups that receive distinct treatments. The ultimate objective is to unveil distinct opportunities within this challenging and critical medical landscape.
 
-### **GBM Overview**
+## GBM Overview
 
-Glioblastoma Multiforme (GBM) stands as the most common and aggressive primary malignant brain tumor in adults. It originates from glial cells in the brain, particularly astrocytes. GBM is characterized by its highly invasive nature, rapid growth rate, and a high recurrence rate, making it a formidable challenge to treat. The standard treatment protocol includes surgery, radiation, and chemotherapy, with Temozolomide being a common chemotherapy drug. Despite aggressive treatment, prognosis remains bleak, with a median survival of 12-15 months.
-
-### **Market Analysis**
+Glioblastoma Multiforme (GBM) stands as the most common and aggressive primary malignant brain tumor in adults. It originates from glial cells in the brain, particularly astrocytes. GBM is characterized by its highly invasive nature, rapid growth rate, and a high recurrence rate, making it a formidable challenge to treat. The standard treatment protocol includes surgery, radiation, and chemotherapy, with Temozolomide being a common chemotherapy drug. Despite aggressive treatment, prognosis remains bleak.
 
 #### Descriptive Statistics
 
@@ -32,7 +27,7 @@ gbm <- read.csv("GBM patient data.csv") |>
   janitor::clean_names()
 ```
 
-To better understand the GBM market, here are some analysis results utilizing data of `r n_distinct(gbm$patient_id)` participants from `r n_distinct(gbm$md_id)` healthcare providers.
+To better understand the GBM market, we will do some analysis utilizing GBM data of `r n_distinct(gbm$patient_id)` patients from `r n_distinct(gbm$md_id)` healthcare providers.
 
 ```{r raw data explorations, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
 library(summarytools)
@@ -73,7 +68,7 @@ gbm <- gbm %>%
     "mgmt_methylated", 
     "egfr_mutated", 
     "tp53_mutated", 
-    "idh1_idh2_mutated", 
+    "idh1_idh2_mutated",
     "pd_l1_overexpressed")), 
     ~ recode_factor(.,
                     `0` = "No",
@@ -104,7 +99,9 @@ gbm <- gbm %>%
          patient_level_of_involvement = factor(patient_level_of_involvement, 
                                                levels = c("Low", "Average", "High"), 
                                                ordered = TRUE),
-         patient_treatment_goals = as.factor(patient_treatment_goals), 
+         patient_treatment_goals = factor(patient_treatment_goals, 
+                                          levels = c("Survival", "Life Quality"), 
+                                          ordered = TRUE), 
          race = recode(race, 
                        "Black/African" = "Black", 
                        "White/Caucasian" = "White",
@@ -190,10 +187,9 @@ numeric_vars <- gbm %>%
   select(-md_id, -patient_id)
 
 # Calculate summary statistics
-summary_stats <- describe(numeric_vars) %>% select(mean, sd, min, max, range)
+summary_stats <- describe(numeric_vars) %>% select(mean, sd, min, median, max, range)
 
 # Print the statistic table
-print("Summary statistics for selected numeric variables:")
 summary_stats %>% knitr::kable()
 
 # 2. Generate frequency tables for categorical variables
@@ -245,13 +241,13 @@ for (var in colnames(cat_vars_X2)) {
 }
 
 # Print the tables
-print("Selected categorical variables, Frequencies:")
 result_freq %>% 
   filter(variable %in% c("gender", "race", "patient_level_of_involvement", "patient_treatment_goals", "line_of_therapy")) %>%
   knitr::kable()
-print("Selected categorical variables, Chi-square test:")
-chi_square_results %>% 
-  knitr::kable()
+# Chi-square test did not find any significant findings; do not show the table. 
+# print("Selected categorical variables, Chi-square test:")
+# chi_square_results %>% 
+#  knitr::kable()
 
 # 3. Generate frequency table for comorbidities
 
@@ -276,20 +272,70 @@ objects_to_remove <- setdiff(all_objects, objects_to_keep)
 rm(list = objects_to_remove)
 ```
 
+In this dataset, the age at GBM diagnosis varies, with the median and mean closely aligned, suggesting a **symmetric distribution**. GBM primarily affects **adults**, with no diagnoses on or before age 18. Surgical resection has a mean percentage of 70.1% and a slightly higher median indicating a **left-skewed distribution**. Average comorbidity count is around 1, highlighting **minimal comorbidities**.
+
+The majority of participants are **White** (75.1%) and **male** (65%). A more diverse study is needed for a comprehensive view of GBM across races. Most patients undergo **second-line therapy** with a balanced distribution between therapy lines. Around half have **average GBM involvement**, the remainder has a larger proportion showing high involvement compared to low involvement. Most patients prioritize **survival** (69%) over life quality (31%). No categorical variable displayed significant disparity in the chi-square test (significance level: 0.05).
+
 #### Comorbidities
 
-There are a number of comorbidities that can co-occur with GBM. There is a maximum of `r max(gbm$comorbidity_count)` comorbidities co-occurring with GBM in record. The table below listed the 5 most common comorbidities in record and their frequencies.
-```{r echo = FALSE}
+```{r 5 most common regimens, echo = FALSE, results='hide', message=FALSE, warning=FALSE}
 # Display the data frame
 comorbidity_df %>% 
   head(5) %>%
   knitr::kable()
 ```
 
+There are a number of comorbidities that can co-occur with GBM. There is a maximum of `r max(gbm$comorbidity_count)` comorbidities co-occurring with GBM in record. **Hypertension** is the most prevalent comorbidity (24% of sample), followed by **diabetes** (18.4% of sample), **anemia** (15.6%), **chronic obstructive pulmonary disease** (11.5%), and **renal impairment** (10.5%), many of which share similar risk factors and medication overlap. 
 
-#### Existing Regimens
+#### Genetic Factors
 
-```{r results='hide', echo=FALSE, message=FALSE, warning=FALSE}
+```{r genetic factors, echo = FALSE, results='hide', message=FALSE, warning=FALSE}
+# Create a function to concatenate genetic factors
+combine_genetic <- function(row) {
+  genetic_factors <- c()
+  
+  # List of all genetic variables
+  genetic_vars <- c("mgmt_methylated", "egfr_mutated", 
+                    "tp53_mutated", "idh1_idh2_mutated", 
+                    "pd_l1_overexpressed")
+  
+  # Loop through genetic variables
+  for (var in genetic_vars) {
+    if (row[[var]] == "Yes") {
+      # Add the condition name to genetic_factors list
+      genetic_factors <- c(genetic_factors, gsub("_", " ", var))
+    }
+  }
+  
+  # Combine all genetic factors into a single string, separated by commas
+  paste(genetic_factors, collapse = ", ")
+}
+```
+
+```{r genetic table, echo = FALSE, message=FALSE, warning=FALSE}
+# Apply the function to each row of the data frame and create a new variable
+library(knitr)
+genetic_vars <- c("mgmt_methylated", "egfr_mutated", 
+                  "tp53_mutated", "idh1_idh2_mutated", 
+                  "pd_l1_overexpressed")
+
+combined_genetic <- sapply(gbm[genetic_vars], table)/nrow(gbm) * 100
+combined_genetic %>% knitr::kable()
+```
+
+Table above shows genetic factor variables and their percentages. There are a number of genetic factors associated with GBM. In this dataset, genetic factors include: 
+
+- **MGMT methylated:** The MGMT gene's methylation status. When methylated, the MGMT gene is less active, which can affect how GBM responds to certain treatments. 
+- **EGFR mutated:** Indicates mutations in the EGFR gene, which plays a role in cell growth. Mutations can lead to uncontrolled cell growth, a characteristic of many tumors.
+- **TP53 mutated:** Mutations in the TP53 gene are present. This gene helps regulate cell growth and repair damaged DNA. Mutations can promote tumor development.
+- **IDH1/IDH2 mutated:** Mutations in the IDH1 or IDH2 genes are linked to cancer growth. These mutations can influence treatment choices and outcomes for GBM patients.
+- **PD-L1 overexpressed:** The PD-L1 protein is overproduced, potentially suppressing the body's immune response to the tumor. This can inform decisions about immunotherapy treatments.
+
+#### Lines of Therapy
+
+Chi-squared test did not identify significant difference between the proportions of patients taking 1st line and 2nd line of therapy. For the distinct difference between 1st and 2nd line of therapies in nature, we will next explore some visualizations sub-grouped by line of therapy. 
+
+```{r Most and least popular regimens, results='hide', echo=FALSE, message=FALSE, warning=FALSE}
 # Calculate the most and least popular regimens for the 1st line of therapy
 max_regimen_1st <- result_freq %>% 
   filter(variable == "regimen_in_1st_line") %>%
@@ -322,15 +368,7 @@ min_regimen_2nd <- regimen_2nd_line_filtered %>%
   slice(1)
 ```
 
-##### 1st line of therapy
-
-Regimen used in 1st line of therapy include `r unique(result_freq$categories[result_freq$variable == "regimen_in_1st_line"])`. The most popular regimen used is `r max_regimen_1st$categories`, which accounts for `r max_regimen_1st$percent` of all regimens recorded. The least popular regimen used is `r min_regimen_1st$categories`, specifically `r unique(gbm$regimen_in_1st_line_other)`, which altogether accounts for `r min_regimen_1st$percent` of all regimens recorded.
-
-##### 2nd line of therapy
-
-Regimen used in 2nd line of therapy include `r unique(result_freq$categories[result_freq$variable == "regimen_in_2nd_line"])`. Excluding Unknown, the most popular regimen used is `r max_regimen_2nd$categories`, which accounts for `r max_regimen_2nd$percent` of all regimens recorded. The least popular regimen used is `r min_regimen_2nd$categories`, which accounts for `r min_regimen_2nd$percent` of all regimens recorded.
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```{r categorical_vars, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
 categorical_vars <- gbm %>%
   select_if(is.character)
 regimen_X2 <- select(categorical_vars, c("regimen_in_1st_line", "regimen_in_2nd_line"))
@@ -359,7 +397,6 @@ print("Regimens, Chi-square test:")
 chi_square_results %>% 
   knitr::kable()
 ```
-
 
 ```{r explorations, results='hide', echo=FALSE, message=FALSE, warning=FALSE}
 summary(gbm)
@@ -396,213 +433,128 @@ apply_unique <- function(data, vars) {
 apply_unique(gbm, categorical_vars)
 ```
 
-#### Patient Behaviors & Insurance
+- **1st Line of Therapy:** Regimen used in 1st line of therapy include `r unique(result_freq$categories[result_freq$variable == "regimen_in_1st_line"])`. The most popular regimen used is `r max_regimen_1st$categories`, which accounts for `r max_regimen_1st$percent` of all regimens recorded. The least popular regimen used is `r min_regimen_1st$categories`, specifically `r unique(gbm$regimen_in_1st_line_other)`, which altogether accounts for `r min_regimen_1st$percent` of all regimens recorded. 
+- **2nd Line of Therapy:** Regimen used in 2nd line of therapy include `r unique(result_freq$categories[result_freq$variable == "regimen_in_2nd_line"])`. Excluding Unknown, the most popular regimen used is `r max_regimen_2nd$categories`, which accounts for `r max_regimen_2nd$percent` of all regimens recorded. The least popular regimen used is `r min_regimen_2nd$categories`, which accounts for `r min_regimen_2nd$percent` of all regimens recorded.
 
-Patient's level of involvement in GBM and treatment goal differs by their age at diagnosis, their gender, their race, their line of therapy, their primary insurance, the comorbidity they have, their travel time (if less than 30 minutes), whether there is adequate support from caretaker, and the percent of tumor mass surgically resected.
+##### ECOG
 
-```{r EDA and Visualizations, results='hide', echo=FALSE, message=FALSE, warning=FALSE, fig.width=8, fig.height=3}
-# 1. Bivariate Analysis
+Eastern Cooperative Oncology Group (ECOG) Performance Status is a scale used to assess the functional status of cancer patients, with lower values indicating better functional status and higher values indicating worse functional status. Table below shows ECOG categories and their percentages. 
 
-# Filter out the entries with "Unknown" in the outcome variables
-gbm_filtered <- gbm %>%
-  filter(patient_level_of_involvement != "Unknown", patient_treatment_goals != "Unknown")
+```{r ECOG table, echo = FALSE, message=FALSE, warning=FALSE}
+# Apply the function to each row of the data frame and create a new variable
+ecog_list <- c("ecog_at_1st_line", "ecog_at_2nd_line")
 
-# age_at_diagnosis
-glm(patient_level_of_involvement ~ age_at_diagnosis, data = gbm_filtered, family = binomial) %>% summary()
-glm(patient_treatment_goals ~ age_at_diagnosis, data = gbm_filtered, family = binomial) %>% summary()
+# Convert factors to character temporarily
+gbm[ecog_list] <- lapply(gbm[ecog_list], as.character)
 
-# gender
-glm(patient_level_of_involvement ~ gender, data = gbm_filtered, family = binomial) %>% summary()
-glm(patient_treatment_goals ~ gender, data = gbm_filtered, family = binomial) %>% summary()
+# Get a list of tables
+ecog_tables <- lapply(gbm[ecog_list], table)
 
-# race
-glm(patient_level_of_involvement ~ race, data = gbm_filtered, family = binomial) %>% summary()
-glm(patient_treatment_goals ~ race, data = gbm_filtered, family = binomial) %>% summary()
+# Convert the counts to percentages
+ecog_percent <- lapply(ecog_tables, function(tbl) {
+  tbl_percent <- (tbl / nrow(gbm)) * 100
+  return(tbl_percent)
+})
 
-# line_of_therapy
-glm(patient_level_of_involvement ~ line_of_therapy, data = gbm_filtered, family = binomial) %>% summary()
-glm(patient_treatment_goals ~ line_of_therapy, data = gbm_filtered, family = binomial) %>% summary()
+# Bind them together into a data frame for better presentation
+ecog_df <- data.frame(do.call(cbind, ecog_percent))
 
-# primary_insurance
-glm(patient_level_of_involvement ~ primary_insurance, data = gbm_filtered, family = binomial) %>% summary()
-glm(patient_treatment_goals ~ primary_insurance, data = gbm_filtered, family = binomial) %>% summary()
+# Display the table
+knitr::kable(ecog_df)
+```
 
-# comorbidity_count
-glm(patient_level_of_involvement ~ comorbidity_count, data = gbm_filtered, family = binomial) %>% summary()
-glm(patient_treatment_goals ~ comorbidity_count, data = gbm_filtered, family = binomial) %>% summary()
+- ECOG 0: Fully active, able to carry on all activities without restriction. 
+- ECOG 1: Restricted in physically strenuous activity but able to walk and carry out light work. 
+- ECOG 2: Ambulatory and capable of self-care, but unable to work; out of bed more than 50% of waking hours. 
+- ECOG 3: Capable of only limited self-care, confined to bed or chair more than 50% of waking hours. 
+- ECOG 4: Completely disabled, cannot carry out any self-care, confined to bed or chair all the time. 
+- ECOG 9: Unknown
 
-# patient_travel_time_lt30min
-glm(patient_level_of_involvement ~ patient_travel_time_lt30min, data = gbm_filtered, family = binomial) %>% summary()
-glm(patient_treatment_goals ~ patient_travel_time_lt30min, data = gbm_filtered, family = binomial) %>% summary()
+## Visualizations - Demographics, Treatment Line, Patient Involvement, Treatment Goals
 
-# adequate_caretaker_support
-glm(patient_level_of_involvement ~ adequate_caretaker_support, data = gbm_filtered, family = binomial) %>% summary()
-glm(patient_treatment_goals ~ adequate_caretaker_support, data = gbm_filtered, family = binomial) %>% summary()
+In strategizing market entry, understanding patients' involvement levels and their treatment objectives is pivotal for anticipating demands and pinpointing potential therapeutic niches. 
 
-# pct_of_tumor_mass_surgically_resected
-glm(patient_level_of_involvement ~ pct_of_tumor_mass_surgically_resected, data = gbm_filtered, family = binomial) %>% summary()
-glm(patient_treatment_goals ~ pct_of_tumor_mass_surgically_resected, data = gbm_filtered, family = binomial) %>% summary()
-
+```{r Visualizations: line of therapies, echo=FALSE, fig.width=8, fig.height=3}
 library(ggplot2)
+line1_filtered <- gbm %>% filter(line_of_therapy == "1L")
+line2_filtered <- gbm %>% filter(line_of_therapy == "2L")
 
-ggplot(gbm, aes(x = patient_level_of_involvement)) +
-  geom_bar(fill = "darkblue") +
-  facet_grid(. ~ primary_insurance) + 
-  labs(title = "Bar Plot of patient involvement, by primary insurance", x = "Patient Involvement", s = "Count") + 
+line_labs <- c("1st Line of Therapy", "2nd Line of Therapy")
+names(line_labs) <- c("1L", "2L")
+
+ggplot(gbm, aes(x = gender, y = age_at_diagnosis)) + 
+  geom_boxplot(outlier.colour="black", outlier.shape=16,
+             outlier.size=2, notch=FALSE) + 
+  facet_grid(. ~ line_of_therapy, labeller = labeller(line_of_therapy = line_labs)) +
+  labs(
+    title = "Box Plot: Distribution of Age at Diagnosis by Gender",
+       x = "Gender",
+       y = "Age at Diagnosis"
+      ) + 
   theme(
     title = element_text(size=8),
-    axis.text.x = element_text(size=5), 
+    axis.text.x = element_text(size=8), 
     axis.text.y = element_text(size=8),
-    strip.text = element_text(size = 5))
+    strip.text = element_text(size = 8), 
+    legend.position = "bottom")
 
-ggplot(gbm, aes(x = patient_treatment_goals)) +
-  geom_bar(fill = "darkblue") +
-  facet_grid(. ~ primary_insurance) + 
-  labs(title = "Bar Plot of patient treatment goals, by primary insurance", x = "Patient Treatment Goal", s = "Count") + 
+ggplot(gbm, aes(x = patient_level_of_involvement, fill = primary_insurance)) +
+  geom_bar(position = "stack") +
+  facet_grid(. ~ line_of_therapy, labeller = labeller(line_of_therapy = line_labs)) + 
+  labs(title = "Bar Plot of Patient Involvement by Primary Insurance", x = "Patient Involvement Level", s = "Count") + 
   theme(
     title = element_text(size=8),
-    axis.text.x = element_text(size=5), 
+    axis.text.x = element_text(size=8), 
     axis.text.y = element_text(size=8),
-    strip.text = element_text(size = 5))
+    strip.text = element_text(size = 8), 
+    legend.position = "right") + 
+  viridis::scale_fill_viridis(discrete = TRUE)
+
+ggplot(gbm, aes(x = patient_treatment_goals, fill = primary_insurance)) +
+  geom_bar(position = "stack") +
+  facet_grid(. ~ line_of_therapy, labeller = labeller(line_of_therapy = line_labs)) + 
+  labs(title = "Bar Plot of Patient Treatment Goals by Primary Insurance", x = "Patient Treatment Goal", s = "Count") + 
+  theme(
+    title = element_text(size=8),
+    axis.text.x = element_text(size=8), 
+    axis.text.y = element_text(size=8),
+    strip.text = element_text(size = 8),
+    legend.position = "right") + 
+  viridis::scale_fill_viridis(discrete = TRUE)
 ```
 
-```{r Bivariate Logistic Regression, echo=FALSE, warning=FALSE, message=FALSE}
-# Load necessary libraries
-library(dplyr)
-library(broom)
+As indicated by the provided graphs:
 
-# Perform logistic regression analysis as you've already done
+- **Age at Diagnosis:** This parameter remains consistent irrespective of therapy lines and gender, suggesting that age might not be a primary differentiator in this market.
+- **Primary Insurance Dynamics:** While the choice of primary insurance is influenced by patients' involvement levels and treatment goals, it remains uniform across different therapy lines.
+  - For patients with medium to high involvement levels and a primary focus on survival, HMO, PPO, and Medicare are the prevailing insurance choices.
+  - Conversely, Medicare emerges as the dominant insurance for those with low involvement levels, particularly for patients prioritizing quality of life.
+- **Socioeconomic Implications:** The types of primary insurance often serve as proxies for patients' socioeconomic backgrounds. For instance:
+  - Medicaid typically caters to a younger demographic, specifically those under 65 with constrained financial resources.
+  - Medicare predominantly targets the senior population aged 65 and above.
 
-# Create a list of models and variable names for both patient_level_of_involvement and patient_treatment_goals
-models <- list(
-  level_of_involvement = list(
-    age_at_diagnosis = glm(patient_level_of_involvement ~ age_at_diagnosis, data = gbm_filtered, family = binomial),
-    gender = glm(patient_level_of_involvement ~ gender, data = gbm_filtered, family = binomial),
-    race = glm(patient_level_of_involvement ~ race, data = gbm_filtered, family = binomial),
-    line_of_therapy = glm(patient_level_of_involvement ~ line_of_therapy, data = gbm_filtered, family = binomial),
-    primary_insurance = glm(patient_level_of_involvement ~ primary_insurance, data = gbm_filtered %>% filter(gender != "Unknown"), family = binomial),
-    comorbidity_count = glm(patient_level_of_involvement ~ comorbidity_count, data = gbm_filtered, family = binomial),
-    patient_travel_time_lt30min = glm(patient_level_of_involvement ~ patient_travel_time_lt30min, data = gbm_filtered %>% filter(patient_travel_time_lt30min != 9), family = binomial),
-    adequate_caretaker_support = glm(patient_level_of_involvement ~ adequate_caretaker_support, data = gbm_filtered %>% filter(adequate_caretaker_support != 9), family = binomial),
-    pct_of_tumor_mass_surgically_resected = glm(patient_level_of_involvement ~ pct_of_tumor_mass_surgically_resected, data = gbm_filtered, family = binomial)
-  ),
-  treatment_goals = list(
-    age_at_diagnosis = glm(patient_treatment_goals ~ age_at_diagnosis, data = gbm_filtered, family = binomial),
-    gender = glm(patient_treatment_goals ~ gender, data = gbm_filtered, family = binomial),
-    race = glm(patient_treatment_goals ~ race, data = gbm_filtered, family = binomial),
-    line_of_therapy = glm(patient_treatment_goals ~ line_of_therapy, data = gbm_filtered, family = binomial),
-    primary_insurance = glm(patient_treatment_goals ~ primary_insurance, data = gbm_filtered, family = binomial),
-    comorbidity_count = glm(patient_treatment_goals ~ comorbidity_count, data = gbm_filtered, family = binomial),
-    patient_travel_time_lt30min = glm(patient_treatment_goals ~ patient_travel_time_lt30min, data = gbm_filtered, family = binomial),
-    adequate_caretaker_support = glm(patient_treatment_goals ~ adequate_caretaker_support, data = gbm_filtered, family = binomial),
-    pct_of_tumor_mass_surgically_resected = glm(patient_treatment_goals ~ pct_of_tumor_mass_surgically_resected, data = gbm_filtered, family = binomial)
-  )
-)
+In light of these insights, it's evident that insurance dynamics, potentially steered by demographic factors, play a crucial role in this market. Recognizing and leveraging these variations will be instrumental in fine-tuning our client's market segmentation strategy.
 
-# Function to extract and summarize significant results
-summarize_significant <- function(model_list, level_of_significance = 0.05) {
-  results <- bind_rows(
-    lapply(names(model_list), function(outcome) {
-      lapply(names(model_list[[outcome]]), function(variable) {
-        tidy(model_list[[outcome]][[variable]]) %>%
-          filter(p.value < level_of_significance, term != "(Intercept)") %>%
-          mutate(outcome = outcome,
-                 variable = variable)
-      })
-    }) %>% bind_rows()
-  ) %>%
-  select(term, outcome, estimate, p.value)
+## Key Findings and Points to Consider: 
 
-  return(results)
-}
+1. **Patient Demographics:** GBM primarily affects adults, with a mean age at diagnosis of approximately 57 years.
+2. **Treatment Regimens:** TMZ mono is the most popular regimen for the 1st line of therapy. Avastin mono is the preferred choice for the 2nd line of therapy.
+3. **Genetic Factors:** Multiple genetic mutations influence treatment decisions, with a significant portion of patients having unknown genetic statuses.
+4. **Patient Insurance and Socioeconomic Background:** Types of primary insurance, including Medicaid and Medicare, offer insights into the patients' socioeconomic backgrounds.
 
-# Call the function to get significant results
-significant_results <- summarize_significant(models)
+## Opportunity Analysis:
 
-# Display the final table with selected columns
-print("Bivariate Logistic Regression Analysis, significant at 5% level:")
-significant_results %>% knitr::kable()
-```
+1. **Diverse Study Requirement:** Since 75.1% of participants are White, there's an opportunity to focus on more diverse clinical studies to provide a comprehensive view of GBM across races.
+2. **Genetic Mutation Treatments:** Given the significant proportion of patients with unknown genetic statuses, there's potential in offering more genetic testing or therapies that cater to known mutations.
+3. **Addressing the 2nd Line of Therapy:** With Avastin mono being the preferred choice, new drug combinations or therapeutic solutions could be researched for 2nd line treatments.
+4. **Younger Demographic Engagement:** With Medicaid catering to a younger demographic under 65 with constrained financial resources, there's an opportunity to offer specialized programs or financial aid to this segment.
 
-Additionally, multiple variable logistic regression including all exposures with significant bivariate result found: 
+## Recommendations:
 
-```{r Multiple Variable Logistic Regression, echo=FALSE, warning=FALSE, message=FALSE, fig.width=12, fig.height=7}
-library(broom)
-library(knitr)
-# Logistic regression model for 'level_of_involvement'
-model_level_of_involvement <- glm(patient_level_of_involvement ~ age_at_diagnosis + 
-                                  race +
-                                  patient_travel_time_lt30min +
-                                  pct_of_tumor_mass_surgically_resected,
-                                  family = "binomial", data = gbm)
+1. **Diversify Clinical Trials:** The client should consider diversifying clinical trials, ensuring broader racial and ethnic representation, thus allowing for treatments that cater to a broader patient base.
+2. **Expand Genetic Testing:** Advocate for and possibly offer genetic testing services for patients to determine mutation statuses. This will help in personalizing treatments more effectively.
+3. **Engage Insurance Providers:** Build partnerships with insurance providers, especially Medicaid and Medicare, to potentially offer more affordable treatment options or payment plans.
+4. **Patient Education:** Develop and implement educational programs, particularly targeting the younger demographic and those with low involvement levels. This can aid in early diagnosis and treatment adherence.
+5. **Therapeutic R&D:** Invest in research and development for treatments targeting specific genetic mutations like MGMT methylated or EGFR mutated.
+6. **Socioeconomic Support Programs:** Establish support programs for patients under Medicaid, focusing on financial aid, counseling, and other support services.
 
-# Logistic regression model for 'treatment_goals'
-model_treatment_goals <- glm(patient_treatment_goals ~ age_at_diagnosis + 
-                              gender +
-                              line_of_therapy +
-                              adequate_caretaker_support,
-                              family = "binomial", data = gbm)
-
-# Convert model summaries to data frames
-tidy_level_of_involvement <- tidy(model_level_of_involvement, conf.int = TRUE) %>% select("term", "estimate", "std.error", "p.value")
-tidy_treatment_goals <- tidy(model_treatment_goals, conf.int = TRUE) %>% select("term", "estimate", "std.error", "p.value")
-
-# Print tables
-print("Multivariable Logistic Regression Analysis, Outcome = Patient's Level of Involvement:")
-knitr::kable(tidy_level_of_involvement)
-print("Multivariable Logistic Regression Analysis, Outcome = Patient's Treatment Goals:")
-knitr::kable(tidy_treatment_goals)
-
-# Install and load required packages
-if (!require("effects")) install.packages("effects", dependencies=TRUE)
-library(effects)
-
-
-# Reset the plotting area to a single plot
-par(mfrow = c(1, 1), cex.lab = 1, cex.axis = 1, cex.main = 1)
-# Predicted probabilities for level_of_involvement model
-print("Predicted Probabilities Plots, Outcome = patient involvement level")
-plot(allEffects(model_level_of_involvement))
-# Predicted probabilities for treatment_goals model
-print("Predicted Probabilities Plots, Outcome = patient treatment goals")
-plot(allEffects(model_treatment_goals))
-```
-
-
-## **Discussion Questions**
-
-### **Market Landscape**
-
-Given the poor prognosis and limited efficacy of current treatments, there's a notable unmet need for new therapies in the GBM market. Numerous pharmaceutical and biotech companies are conducting research on new treatments, encompassing targeted therapies, immunotherapies, and personalized medicine approaches. Clinical trials are underway to evaluate various novel agents and treatment modalities.
-
-### **Potential Market Opportunities**
-
-- Development of drugs with the ability to effectively cross the blood-brain barrier (BBB).
-- Targeted therapies based on molecular and genetic profiling of tumors.
-- Immunotherapies designed to engage the immune system to recognize and attack GBM cells.
-- Advanced drug delivery systems, such as nanoparticles or convection-enhanced delivery.
-
-#### Market Risks
-
-- Stringent regulatory pathways due to the aggressive nature of GBM and past drug development failures.
-- Challenges in clinical trial design related to the heterogeneity of the disease.
-- Competition from existing and emerging therapies.
-- Payer and reimbursement challenges due to the high costs of cancer therapies.
-
-#### Competitive Landscape & Ongoing Clinical Trials
-
-- Evaluation of current treatments, including surgery, radiation, and chemotherapy (Temozolomide).
-- Identification of industry leaders, their drug candidates, and market share.
-- Focused analysis on late-stage clinical trials and recent trends.
-- Examination of trial results, particularly notable successes and failures.
-
-#### Collaboration Opportunities & Regulatory Considerations
-
-- Exploration of potential partnerships with research institutions, pharmaceutical, and biotech companies.
-- Engagement with patient organizations.
-- Thorough review of FDA and EMA guidelines for oncology drug approvals.
-- Comprehension of expedited pathways such as Breakthrough Therapy and Fast Track.
-
-#### Market Insights
-
-The cost of existing treatments varies significantly, ranging from surgical procedures and radiation therapy to chemotherapy drugs like Temozolomide. Costs are influenced by factors like insurance coverage, geographic location, and treatment duration. Additionally, the introduction of innovative therapies, including Tumor Treating Fields (TTF) through devices like Optune, adds complexity to the market.
