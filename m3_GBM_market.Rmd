@@ -8,8 +8,6 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Introduction
-
 This report offers a comprehensive analysis of the Glioblastoma Multiforme (GBM) therapeutic area to facilitate our client's decision-making process as they contemplate entering this specialized field. Our primary focus is on understanding the structure of the GBM market, specifically identifying clinically significant patient subgroups that receive distinct treatments. The ultimate objective is to unveil distinct opportunities within this challenging and critical medical landscape.
 
 ## GBM Overview
@@ -438,7 +436,7 @@ apply_unique(gbm, categorical_vars)
 
 ##### ECOG
 
-Eastern Cooperative Oncology Group (ECOG) Performance Status is a scale used to assess the functional status of cancer patients, with lower values indicating better functional status and higher values indicating worse functional status. Table below shows ECOG categories and their percentages. 
+The Eastern Cooperative Oncology Group (ECOG) Performance Status is a widely-accepted scale utilized to evaluate the functional capacity of cancer patients. This assessment tool offers insights into a patient's ability to endure treatment and their overall prognosis. A lower score denotes a better functional status, whereas a higher score suggests more significant functional impairment.
 
 ```{r ECOG table, echo = FALSE, message=FALSE, warning=FALSE}
 # Apply the function to each row of the data frame and create a new variable
@@ -463,12 +461,15 @@ ecog_df <- data.frame(do.call(cbind, ecog_percent))
 knitr::kable(ecog_df)
 ```
 
-- ECOG 0: Fully active, able to carry on all activities without restriction. 
-- ECOG 1: Restricted in physically strenuous activity but able to walk and carry out light work. 
-- ECOG 2: Ambulatory and capable of self-care, but unable to work; out of bed more than 50% of waking hours. 
-- ECOG 3: Capable of only limited self-care, confined to bed or chair more than 50% of waking hours. 
-- ECOG 4: Completely disabled, cannot carry out any self-care, confined to bed or chair all the time. 
-- ECOG 9: Unknown
+- ECOG 0: Fully active, able to carry on all activities without restriction. This subsegment of patients is generally in the best health amongst those with cancer and is likely to tolerate aggressive treatments well.
+- ECOG 1: Restricted in physically strenuous activity but able to walk and carry out light work. These individuals might require some adjustments to their treatment regimens but are largely capable of leading an active life.
+- ECOG 2: Ambulatory and capable of self-care, but unable to work; out of bed more than 50% of waking hours. The health of this segment is moderately compromised, warranting careful consideration of treatment intensity to prevent further functional decline.
+- ECOG 3: Capable of only limited self-care, confined to bed or chair more than 50% of waking hours. Such patients are significantly impaired and might benefit from supportive care interventions to enhance their quality of life.
+- ECOG 4: Completely disabled, cannot carry out any self-care, confined to bed or chair all the time. This is the most critically impaired group. Palliative care and symptom management might be of prime importance to these patients.
+
+For those on 1st line of treatment, ECOG 1 accounts for an overwhelming proportion, followed by ECOG 0, ECOG 2, and ECOG 4. This distribution suggests a mix of patients in terms of health status during the 1st line of treatment.
+
+For those on 2nd line of treatment, ECOG 2 and 3 relatively evenly split the predominant proportions of patients, indicating that many of these patients have moderate functional limitations. This is followed by ECOG 0 and ECOG 3. This pattern suggests that as patients progress to the 2nd line of treatment, there is a broader spread of functional status, with a noticeable number of patients in both moderate and more severe categories.
 
 ## Visualizations - Demographics, Treatment Line, Patient Involvement, Treatment Goals
 
